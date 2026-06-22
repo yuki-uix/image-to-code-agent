@@ -1,0 +1,4 @@
+{
+  "names": ["Header", "SearchBar", "Tag"],
+  "minimumInstances": { "Tag": 3 }
+}

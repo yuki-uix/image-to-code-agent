@@ -1,0 +1,13 @@
+{
+  "name": "image-to-code-agent-framework",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node src/cli.ts --image evaluation/landing-pages/simple-search/screenshot.svg --responses evaluation/landing-pages/simple-search/model-responses.json --out outputs/demo",
+    "test": "node --test test/**/*.test.ts"
+  },
+  "engines": {
+    "node": ">=23.6"
+  }
+}

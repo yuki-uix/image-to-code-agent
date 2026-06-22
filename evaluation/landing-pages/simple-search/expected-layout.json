@@ -1,0 +1,4 @@
+{
+  "rootDirection": "column",
+  "regions": ["header", "hero"]
+}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <rect width="1440" height="900" fill="#f8fafc"/>
+  <text x="72" y="72" font-family="Arial" font-size="24" font-weight="700" fill="#0f172a">Atlas</text>
+  <g font-family="Arial" font-size="15" fill="#475569">
+    <text x="1080" y="70">Docs</text><text x="1150" y="70">Pricing</text>
+  </g>
+  <rect x="1230" y="42" width="138" height="44" rx="10" fill="#2563eb"/>
+  <text x="1262" y="70" font-family="Arial" font-size="15" fill="white">Get started</text>
+  <text x="720" y="290" text-anchor="middle" font-family="Arial" font-size="56" font-weight="700" fill="#0f172a">Find your next idea</text>
+  <text x="720" y="340" text-anchor="middle" font-family="Arial" font-size="20" fill="#64748b">Search a curated library of useful resources.</text>
+  <rect x="390" y="390" width="660" height="64" rx="14" fill="white" stroke="#cbd5e1"/>
+  <text x="430" y="430" font-family="Arial" font-size="17" fill="#94a3b8">Search resources...</text>
+  <g font-family="Arial" font-size="14" fill="#334155">
+    <rect x="532" y="486" width="105" height="38" rx="19" fill="#e2e8f0"/><text x="554" y="510">Design</text>
+    <rect x="651" y="486" width="138" height="38" rx="19" fill="#e2e8f0"/><text x="672" y="510">Development</text>
+    <rect x="803" y="486" width="105" height="38" rx="19" fill="#e2e8f0"/><text x="830" y="510">Writing</text>
+  </g>
+</svg>
