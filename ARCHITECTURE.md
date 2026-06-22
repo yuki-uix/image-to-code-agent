@@ -22,6 +22,8 @@ Each agent has one reasoning responsibility and receives only the artifacts it n
 | UI Architect | approved memory | `ui-architecture.json` | alter authoritative overrides |
 | Code Generator | architecture, project contract, tokens | `react-page.tsx` | redesign architecture |
 
+Visual Analyst treats bounding boxes as measurement evidence. Its local workbench separates VLM observation from deterministic geometry validation, and emphasizes relative layout relations over absolute positioning.
+
 `ModelClient` is the provider boundary. The checked-in `ReplayModelClient` makes Golden Cases deterministic; a production vision-model adapter can implement the same two methods.
 
 ## Editable memory

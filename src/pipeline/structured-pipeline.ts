@@ -7,6 +7,7 @@ import { CodeGenerator } from "../agents/code-generator.ts";
 import { buildUiMemory, UiMemoryStore } from "../memory/ui-memory-store.ts";
 import { defaultProjectContract, type MemoryOverrides, type PipelineResult, type ProjectContract } from "../domain/contracts.ts";
 import type { ModelClient } from "../model/model-client.ts";
+import { validateGeometry } from "../validation/geometry-validator.ts";
 
 const mimeTypes: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml" };
 
@@ -31,6 +32,11 @@ export class StructuredPipeline {
 
     const visualAnalysis = await new VisualAnalyst(this.model).analyze({ image, viewport: input.viewport });
     await writeJson(join(input.outputDir, "layout.json"), visualAnalysis);
+    const geometryReport = validateGeometry(visualAnalysis);
+    await writeJson(join(input.outputDir, "geometry-validation.json"), geometryReport);
+    if (!geometryReport.valid) {
+      throw new Error(`Visual Analyst returned invalid geometry. See ${join(input.outputDir, "geometry-validation.json")}`);
+    }
 
     const componentRegistry = await new ComponentArchitect(this.model).extract(visualAnalysis);
     await writeJson(join(input.outputDir, "component-registry.json"), componentRegistry);

@@ -7,6 +7,7 @@ import { ReplayModelClient } from "../src/model/replay-model-client.ts";
 import { StructuredPipeline } from "../src/pipeline/structured-pipeline.ts";
 import { buildUiMemory } from "../src/memory/ui-memory-store.ts";
 import { defaultProjectContract, type ComponentRegistry, type VisualAnalysis } from "../src/domain/contracts.ts";
+import { validateGeometry } from "../src/validation/geometry-validator.ts";
 
 const fixture = resolve("evaluation/landing-pages/simple-search");
 
@@ -28,10 +29,13 @@ test("structured pipeline writes all MVP artifacts", async () => {
 
 test("editable memory applies component renames before architecture", () => {
   const visualAnalysis: VisualAnalysis = {
+    source: { width: 100, height: 100 },
     regions: [],
-    layout: { direction: "column", width: 100, height: 100 },
+    layout: { direction: "column" },
     hierarchy: { root: "page", children: {} },
-    elements: []
+    elements: [],
+    layoutRelations: [],
+    uncertainObservations: []
   };
   const componentRegistry: ComponentRegistry = {
     components: {
@@ -49,4 +53,19 @@ test("editable memory applies component renames before architecture", () => {
   assert.equal(memory.componentRegistry.components.Tag, undefined);
   assert.equal(memory.componentRegistry.components.TopicChip.name, "TopicChip");
   assert.deepEqual(memory.decisionsAndOverrides.rename_component, { Tag: "TopicChip" });
+});
+
+test("geometry validation catches boxes outside the screenshot", () => {
+  const analysis: VisualAnalysis = {
+    source: { width: 100, height: 100 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 100, height: 100 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"] } },
+    elements: [{ id: "button", kind: "button", regionId: "page", bbox: { x: 90, y: 90, width: 20, height: 20 }, geometrySource: "vlm", certainty: "low" }],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateGeometry(analysis);
+  assert.equal(report.valid, false);
+  assert.equal(report.issues[0]?.code, "bbox-out-of-bounds");
 });

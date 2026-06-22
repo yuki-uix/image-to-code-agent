@@ -1,20 +1,39 @@
 export type Rect = { x: number; y: number; width: number; height: number };
 
+export type LayoutRelation = {
+  type: "above" | "below" | "left-of" | "right-of" | "aligned-left" | "aligned-center" | "same-width" | "contains";
+  source: string;
+  target: string;
+  distance?: number;
+};
+
 export type UiElement = {
   id: string;
   kind: string;
   text?: string;
   regionId: string;
-  bounds?: Rect;
+  bbox?: Rect;
+  visualRole?: string;
+  geometrySource: "vlm" | "ocr" | "detector";
+  certainty: "high" | "medium" | "low";
   visual?: Record<string, unknown>;
 };
 
 export type VisualAnalysis = {
-  regions: Array<{ id: string; role: string; bounds?: Rect }>;
-  layout: { direction: "row" | "column" | "mixed"; width: number; height: number; notes?: string[] };
+  source: { width: number; height: number };
+  regions: Array<{ id: string; role: string; bbox: Rect }>;
+  layout: {
+    direction: "row" | "column" | "mixed";
+    horizontalAlignment?: "start" | "center" | "end" | "stretch" | "mixed";
+    gap?: number;
+    padding?: { top: number; right: number; bottom: number; left: number };
+    notes?: string[];
+  };
   hierarchy: { root: string; children: Record<string, string[]> };
   elements: UiElement[];
+  layoutRelations: LayoutRelation[];
   visualTokens?: Partial<VisualTokens>;
+  uncertainObservations: Array<{ description: string; relatedIds: string[] }>;
 };
 
 export type ComponentDefinition = {
