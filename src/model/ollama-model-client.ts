@@ -1,6 +1,6 @@
-import type { ModelClient, ModelRequest } from "./model-client.ts";
+import type { ModelRequest, TraceableModelClient } from "./model-client.ts";
 
-export class OllamaModelClient implements ModelClient {
+export class OllamaModelClient implements TraceableModelClient {
   private readonly model: string;
   private readonly host: string;
 
@@ -10,9 +10,17 @@ export class OllamaModelClient implements ModelClient {
   }
 
   async generateJson<T>(request: ModelRequest): Promise<T> {
+    const { parsed } = await this.generateJsonWithRaw<T>(request);
+    return parsed;
+  }
+
+  async generateJsonWithRaw<T>(request: ModelRequest): Promise<{ parsed: T; rawText: string }> {
     const content = await this.chat(request, "json");
     try {
-      return JSON.parse(stripFence(content)) as T;
+      return {
+        parsed: JSON.parse(stripFence(content)) as T,
+        rawText: content
+      };
     } catch (error) {
       throw new Error(`Ollama returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }

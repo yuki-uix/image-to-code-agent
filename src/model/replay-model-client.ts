@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
-import type { ModelClient, ModelRequest } from "./model-client.ts";
+import type { ModelRequest, TraceableModelClient } from "./model-client.ts";
 
 type Responses = Record<ModelRequest["agent"], unknown>;
 
-export class ReplayModelClient implements ModelClient {
+export class ReplayModelClient implements TraceableModelClient {
   private readonly responses: Responses;
 
   constructor(responses: Responses) {
@@ -18,6 +18,11 @@ export class ReplayModelClient implements ModelClient {
     const value = this.responses[agent];
     if (value === undefined) throw new Error(`No replay response for ${agent}`);
     return structuredClone(value) as T;
+  }
+
+  async generateJsonWithRaw<T>(request: ModelRequest): Promise<{ parsed: T; rawText: string }> {
+    const parsed = await this.generateJson<T>(request);
+    return { parsed, rawText: JSON.stringify(parsed, null, 2) };
   }
 
   async generateText({ agent }: ModelRequest): Promise<string> {

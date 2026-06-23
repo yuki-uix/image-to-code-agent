@@ -1,5 +1,7 @@
 import type { VisualAnalysis } from "../domain/contracts.ts";
-import type { ModelClient } from "../model/model-client.ts";
+import type { ModelClient, TraceableModelClient } from "../model/model-client.ts";
+import { normalizeVisualAnalysis } from "../validation/visual-analysis-normalizer.ts";
+import { repairVisualAnalysis } from "../validation/visual-analysis-repair.ts";
 
 export class VisualAnalyst {
   private readonly model: ModelClient;
@@ -10,13 +12,38 @@ export class VisualAnalyst {
     this.instructions = instructions;
   }
 
-  analyze(input: { image: { mimeType: string; base64: string }; viewport: { width: number; height: number } }) {
-    return this.model.generateJson<VisualAnalysis>({
+  async analyze(input: { image: { mimeType: string; base64: string }; viewport: { width: number; height: number } }): Promise<VisualAnalysis> {
+    const { analysis } = await this.analyzeWithTrace(input);
+    return analysis;
+  }
+
+  async analyzeWithTrace(input: { image: { mimeType: string; base64: string }; viewport: { width: number; height: number } }): Promise<{ analysis: VisualAnalysis; raw: unknown; rawText?: string }> {
+    const response = await this.model.generateJson<unknown>({
       agent: "visual-analyst",
       instructions: this.instructions,
       payload: { source: input.viewport },
       image: input.image
     });
+    return { analysis: repairVisualAnalysis(normalizeVisualAnalysis(response, input.viewport)), raw: response };
+  }
+}
+
+export class TraceableVisualAnalyst extends VisualAnalyst {
+  private readonly traceableModel: TraceableModelClient;
+
+  constructor(model: TraceableModelClient, instructions = defaultVisualAnalystInstructions) {
+    super(model, instructions);
+    this.traceableModel = model;
+  }
+
+  async analyzeWithTrace(input: { image: { mimeType: string; base64: string }; viewport: { width: number; height: number } }): Promise<{ analysis: VisualAnalysis; raw: unknown; rawText: string }> {
+    const { parsed, rawText } = await this.traceableModel.generateJsonWithRaw<unknown>({
+      agent: "visual-analyst",
+      instructions: this.instructions,
+      payload: { source: input.viewport },
+      image: input.image
+    });
+    return { analysis: repairVisualAnalysis(normalizeVisualAnalysis(parsed, input.viewport)), raw: parsed, rawText };
   }
 }
 

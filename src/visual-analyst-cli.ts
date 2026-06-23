@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
-import { VisualAnalyst } from "./agents/visual-analyst.ts";
+import { TraceableVisualAnalyst } from "./agents/visual-analyst.ts";
 import { OllamaModelClient } from "./model/ollama-model-client.ts";
+import { looksLikeSchemaEcho } from "./validation/visual-analysis-guards.ts";
 import { validateGeometry } from "./validation/geometry-validator.ts";
 
 const args = parseArgs(process.argv.slice(2));
@@ -20,17 +21,23 @@ if (!args.image) {
   }
 
   const prompt = await readFile(resolve("agents/visual-analyst/prompt.md"), "utf8");
-  const schema = await readFile(resolve("agents/visual-analyst/schema.json"), "utf8");
-  const instructions = `${prompt.trim()}\n\nJSON Schema:\n${schema}`;
+  const instructions = buildVisualAnalysisInstructions(prompt);
   const model = new OllamaModelClient({ model: args.model });
-  const analysis = await new VisualAnalyst(model, instructions).analyze({
+  const analyst = new TraceableVisualAnalyst(model, instructions);
+  const result = await analyst.analyzeWithTrace({
     image: { mimeType: mimeTypeFor(imagePath), base64: bytes.toString("base64") },
     viewport: { width, height }
   });
+  if (looksLikeSchemaEcho(result.raw)) {
+    throw new Error("Visual Analyst returned the schema instead of an analysis instance. Try rerunning after the prompt update, or switch to a stronger vision model.");
+  }
+  const analysis = result.analysis;
   const report = validateGeometry(analysis);
   const outputDir = resolve(args.out ?? `outputs/visual-analyst/${new Date().toISOString().replace(/[:.]/g, "-")}`);
   await mkdir(outputDir, { recursive: true });
   await writeJson(join(outputDir, "analysis.json"), analysis);
+  await writeJson(join(outputDir, "raw-analysis.json"), result.raw);
+  await writeFile(join(outputDir, "raw-analysis.txt"), `${result.rawText.trim()}\n`);
   await writeJson(join(outputDir, "geometry-validation.json"), report);
   await writeJson(join(outputDir, "run.json"), {
     agent: "visual-analyst",
@@ -38,7 +45,7 @@ if (!args.image) {
     image: imagePath,
     source: { width, height },
     prompt: "agents/visual-analyst/prompt.md",
-    schema: "agents/visual-analyst/schema.json"
+    artifacts: ["analysis.json", "raw-analysis.json", "raw-analysis.txt", "geometry-validation.json", "run.json"]
   });
   console.log(`Visual analysis written to ${outputDir}`);
   console.log(report.valid ? "Geometry validation passed." : `Geometry validation found ${report.issues.length} issue(s).`);
@@ -73,4 +80,19 @@ function detectImageSize(bytes: Buffer, extension: string): { width: number; hei
 
 async function writeJson(path: string, value: unknown) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function buildVisualAnalysisInstructions(prompt: string): string {
+  return `${prompt.trim()}
+
+Return one JSON object with this contract:
+- source: { width: number, height: number }
+- regions: array of { id, role, bbox }
+- layout: object with at least direction: "row" | "column" | "mixed"
+- hierarchy: { root: string, children: Record<string, string[]> }
+- elements: array of { id, kind, regionId, bbox?, text?, visualRole?, geometrySource, certainty, visual? }
+- layoutRelations: array of { type, source, target, distance? }
+- uncertainObservations: array of { description, relatedIds }
+
+  Do not output a schema. Do not describe the contract. Output one analysis instance only.`;
 }

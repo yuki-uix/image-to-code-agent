@@ -1,4 +1,5 @@
 import type { Rect, VisualAnalysis } from "../domain/contracts.ts";
+import { normalizeVisualAnalysis } from "./visual-analysis-normalizer.ts";
 
 export type GeometryIssue = {
   severity: "error" | "warning";
@@ -14,29 +15,53 @@ export type GeometryReport = {
 };
 
 export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
+  const normalized = normalizeVisualAnalysis(analysis);
   const issues: GeometryIssue[] = [];
   const ids = new Set<string>();
-  const regionIds = new Set(analysis.regions.map((region) => region.id));
+  const regionIds = new Set(normalized.regions.map((region) => region.id));
+  const hierarchyChildren = normalized.hierarchy.children ?? {};
+  const rootChildren = new Set(hierarchyChildren[normalized.hierarchy.root] ?? []);
 
-  if (analysis.source.width <= 0 || analysis.source.height <= 0) {
+  if (normalized.source.width <= 0 || normalized.source.height <= 0) {
     issues.push(issue("error", "invalid-source-size", "source", "Source width and height must be positive."));
   }
-
-  for (const region of analysis.regions) {
-    checkUnique(region.id, ids, issues);
-    checkRect(region.id, region.bbox, analysis.source, issues);
+  if (normalized.regions.length === 0) {
+    issues.push(issue("error", "missing-regions", "regions", "Visual Analyst must return at least one region."));
+  }
+  if (normalized.elements.length === 0) {
+    issues.push(issue("warning", "missing-elements", "elements", "No UI elements were returned."));
   }
 
-  for (const element of analysis.elements) {
+  for (const region of normalized.regions) {
+    checkUnique(region.id, ids, issues);
+    if (!region.id) issues.push(issue("error", "missing-id", "region", "Every region must have an id."));
+    checkRect(region.id || "region", region.bbox, normalized.source, issues);
+    if (!rootChildren.has(region.id)) {
+      issues.push(issue("warning", "region-not-linked-from-root", region.id, "Every top-level region should be listed under hierarchy.children[root]."));
+    }
+    if (region.role === "page" && normalized.regions.length === 1 && !matchesSourceRect(region.bbox, normalized.source)) {
+      issues.push(issue("warning", "page-region-not-full-canvas", region.id, "A single page-level region should usually cover the full source image."));
+    }
+  }
+
+  for (const element of normalized.elements) {
     checkUnique(element.id, ids, issues);
+    if (!element.id) issues.push(issue("error", "missing-id", element.kind, "Every element must have an id."));
     if (!regionIds.has(element.regionId)) {
       issues.push(issue("error", "missing-region", element.id, `Unknown region: ${element.regionId}`));
     }
-    if (element.bbox) checkRect(element.id, element.bbox, analysis.source, issues);
+    if (element.bbox) checkRect(element.id || element.kind, element.bbox, normalized.source, issues);
+    if (!new Set(hierarchyChildren[element.regionId] ?? []).has(element.id)) {
+      issues.push(issue("warning", "element-not-linked-from-region", element.id, `Region ${element.regionId} should include this element in hierarchy.children.`));
+    }
   }
 
-  const knownIds = new Set([...ids, analysis.hierarchy.root]);
-  for (const relation of analysis.layoutRelations) {
+  if (!normalized.hierarchy.root) {
+    issues.push(issue("error", "missing-hierarchy-root", "hierarchy", "Hierarchy root is required."));
+  }
+
+  const knownIds = new Set([...ids, normalized.hierarchy.root]);
+  for (const relation of normalized.layoutRelations) {
     if (!knownIds.has(relation.source)) issues.push(issue("warning", "missing-relation-source", relation.source, "Relation source does not exist."));
     if (!knownIds.has(relation.target)) issues.push(issue("warning", "missing-relation-target", relation.target, "Relation target does not exist."));
     if (relation.distance !== undefined && relation.distance < 0) issues.push(issue("error", "negative-distance", relation.source, "Relation distance cannot be negative."));
@@ -45,7 +70,7 @@ export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
   return {
     valid: !issues.some((item) => item.severity === "error"),
     issues,
-    stats: { regions: analysis.regions.length, elements: analysis.elements.length, relations: analysis.layoutRelations.length }
+    stats: { regions: normalized.regions.length, elements: normalized.elements.length, relations: normalized.layoutRelations.length }
   };
 }
 
@@ -63,6 +88,10 @@ function checkRect(id: string, rect: Rect, source: { width: number; height: numb
   if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > source.width || rect.y + rect.height > source.height) {
     issues.push(issue("error", "bbox-out-of-bounds", id, "Bounding box must remain inside the source image."));
   }
+}
+
+function matchesSourceRect(rect: Rect, source: { width: number; height: number }): boolean {
+  return rect.x === 0 && rect.y === 0 && rect.width === source.width && rect.height === source.height;
 }
 
 function issue(severity: GeometryIssue["severity"], code: string, targetId: string, message: string): GeometryIssue {

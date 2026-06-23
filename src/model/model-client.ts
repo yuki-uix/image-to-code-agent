@@ -9,3 +9,7 @@ export interface ModelClient {
   generateJson<T>(request: ModelRequest): Promise<T>;
   generateText(request: ModelRequest): Promise<string>;
 }
+
+export interface TraceableModelClient extends ModelClient {
+  generateJsonWithRaw<T>(request: ModelRequest): Promise<{ parsed: T; rawText: string }>;
+}
