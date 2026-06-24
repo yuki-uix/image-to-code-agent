@@ -31,6 +31,9 @@ export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
   if (normalized.elements.length === 0) {
     issues.push(issue("warning", "missing-elements", "elements", "No UI elements were returned."));
   }
+  if (normalized.elements.length > 0 && normalized.elements.length < 5 && normalized.source.height >= 900) {
+    issues.push(issue("warning", "coarse-element-coverage", "elements", "This page appears visually large, but the analysis returned very few elements."));
+  }
 
   for (const region of normalized.regions) {
     checkUnique(region.id, ids, issues);
@@ -53,6 +56,9 @@ export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
     if (element.bbox) checkRect(element.id || element.kind, element.bbox, normalized.source, issues);
     if (!new Set(hierarchyChildren[element.regionId] ?? []).has(element.id)) {
       issues.push(issue("warning", "element-not-linked-from-region", element.id, `Region ${element.regionId} should include this element in hierarchy.children.`));
+    }
+    if (["maincontent", "content", "pagebody", "bodycontent"].includes(element.id.toLowerCase()) || ["maincontent", "content", "pagebody", "bodycontent"].includes(element.kind.toLowerCase())) {
+      issues.push(issue("warning", "generic-catchall-element", element.id || element.kind, "Avoid collapsing multiple visible sections into one generic catch-all element."));
     }
   }
 

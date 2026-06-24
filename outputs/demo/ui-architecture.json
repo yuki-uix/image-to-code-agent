@@ -1,0 +1,56 @@
+{
+  "pages": [
+    {
+      "name": "HomePage",
+      "route": "/",
+      "rootComponent": "HomePage"
+    }
+  ],
+  "components": [
+    {
+      "name": "Header",
+      "file": "components/Header.tsx",
+      "children": []
+    },
+    {
+      "name": "SearchBar",
+      "file": "components/SearchBar.tsx",
+      "children": []
+    },
+    {
+      "name": "Tag",
+      "file": "components/Tag.tsx",
+      "children": []
+    },
+    {
+      "name": "HomePage",
+      "file": "pages/HomePage.tsx",
+      "children": [
+        "Header",
+        "SearchBar",
+        "Tag"
+      ]
+    }
+  ],
+  "layoutTree": {
+    "component": "HomePage",
+    "children": [
+      {
+        "component": "Header"
+      },
+      {
+        "component": "SearchBar"
+      },
+      {
+        "component": "Tag",
+        "repeat": 3
+      }
+    ]
+  },
+  "fileStructure": [
+    "pages/HomePage.tsx",
+    "components/Header.tsx",
+    "components/SearchBar.tsx",
+    "components/Tag.tsx"
+  ]
+}

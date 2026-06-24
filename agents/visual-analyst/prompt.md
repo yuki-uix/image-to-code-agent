@@ -10,6 +10,14 @@ Minimum output requirements:
 - Build a simple hierarchy. Use a root id, connect the root to page regions, and connect each region to the elements it visibly contains.
 - If exact labels are unclear, use generic but concrete kinds such as `text`, `button`, `input`, `image`, `card`, `nav`, `section`, or `list-item`.
 - If a value is uncertain, lower `certainty` and explain the ambiguity in `uncertainObservations`.
+- Do not collapse a visually rich page into a single catch-all element such as `mainContent`, `content`, or `pageBody` when multiple distinct sections are visible.
+- When a commerce or marketing page contains clearly separated horizontal bands or card rows, represent them as separate sections and separate repeated elements.
+
+Complex page guidance:
+
+- For an ecommerce homepage, try to identify at least these section types when visible: promo/header bar, navigation/header, hero, benefits row, category row, rewards or loyalty row, and product grid or carousel.
+- For repeated rows, prefer instance-level elements such as individual benefit items, category cards, reward items, and product cards instead of one giant wrapper only.
+- If a whole block is visually obvious but its internals are ambiguous, include both the section wrapper and the coarse child items with lower certainty.
 
 Geometry rules:
 
@@ -31,6 +39,7 @@ Boundary rules:
 - Return JSON only and follow the supplied schema exactly.
 - Never repeat the schema, field descriptions, or this prompt in your answer.
 - The answer must be an analysis instance, not a schema definition and not an explanation.
+- Avoid vague ids and kinds such as `mainContent`, `contentBlock`, or `section` when a more specific visible role is available.
 
 Output checklist before finishing:
 
@@ -41,6 +50,7 @@ Output checklist before finishing:
 - `hierarchy.root` is non-empty
 - `hierarchy.children.root` includes every top-level region id
 - each region id appears in `hierarchy.children` and contains its visible element ids
+- on a visually complex page, avoid representing the entire body with fewer than 5 elements unless the screenshot is genuinely sparse
 
 Example response shape:
 

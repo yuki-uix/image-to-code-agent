@@ -55,3 +55,35 @@ npm run visual:analyze -- \
 ```
 
 Edit `agents/visual-analyst/prompt.md` between experiments. The model output, deterministic geometry report, and run metadata are written together so experiments remain comparable. Use `--model qwen2.5vl:3b` on a lower-memory machine.
+
+On denser pages you can request a lighter section-first pass:
+
+```sh
+npm run visual:analyze -- \
+  --image /absolute/path/to/complex-page.jpg \
+  --detail coarse \
+  --out outputs/visual-analyst/experiment-002
+```
+
+If even `coarse` is too verbose for the local model, you can force a page-outline pass:
+
+```sh
+npm run visual:analyze -- \
+  --image /absolute/path/to/complex-page.jpg \
+  --detail outline \
+  --out outputs/visual-analyst/experiment-003
+```
+
+When `full` mode returns malformed JSON, the CLI now retries automatically in `coarse`, then `outline`, and records the final `detailUsed` in `run.json`.
+
+## Tune Component Architect locally
+
+After a visual analysis passes validation, you can tune the next agent independently:
+
+```sh
+npm run component:extract -- \
+  --analysis outputs/visual-analyst/experiment-006/analysis.json \
+  --out outputs/component-architect/experiment-001
+```
+
+Edit `agents/component-architect/prompt.md` between experiments. Each run writes the normalized registry, raw model output, deterministic validation report, and provenance metadata together.

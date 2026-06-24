@@ -1,0 +1,22 @@
+{
+  "valid": false,
+  "issues": [
+    {
+      "severity": "error",
+      "code": "missing-regions",
+      "targetId": "regions",
+      "message": "Visual Analyst must return at least one region."
+    },
+    {
+      "severity": "warning",
+      "code": "missing-elements",
+      "targetId": "elements",
+      "message": "No UI elements were returned."
+    }
+  ],
+  "stats": {
+    "regions": 0,
+    "elements": 0,
+    "relations": 0
+  }
+}

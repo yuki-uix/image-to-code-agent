@@ -1,0 +1,19 @@
+{
+  "components": {
+    "SectionHeading": {
+      "name": "SectionHeading",
+      "sourceElementIds": [
+        "heroSection",
+        "shopByCategory",
+        "loyaltyProgram",
+        "bestSellers"
+      ],
+      "instances": 4,
+      "variants": [],
+      "props": [
+        "text"
+      ],
+      "evidence": "Four sections share the same heading structure: a text element with no additional visual or semantic variations."
+    }
+  }
+}

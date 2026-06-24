@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VisualAnalysis",
+  "type": "object",
+  "required": [
+    "source",
+    "regions",
+    "layout",
+    "hierarchy",
+    "elements",
+    "layoutRelations",
+    "uncertainObservations"
+  ],
+  "properties": {
+    "source": {
+      "$ref": "#/$defs/size"
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "bbox"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "bbox": {
+            "$ref": "#/$defs/rect"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layout": {
+      "type": "object"
+    },
+    "hierarchy": {
+      "type": "object"
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "regionId",
+          "geometrySource",
+          "certainty"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "regionId": {
+            "type": "string"
+          },
+          "bbox": {
+            "$ref": "#/$defs/rect"
+          },
+          "visualRole": {
+            "type": "string"
+          },
+          "geometrySource": {
+            "enum": [
+              "vlm",
+              "ocr",
+              "detector"
+            ]
+          },
+          "certainty": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "visual": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layoutRelations": {
+      "type": "array"
+    },
+    "visualTokens": {
+      "type": "object"
+    },
+    "uncertainObservations": {
+      "type": "array"
+    }
+  },
+  "$defs": {
+    "size": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "rect": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

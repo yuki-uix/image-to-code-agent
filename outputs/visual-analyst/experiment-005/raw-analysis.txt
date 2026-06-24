@@ -1,0 +1,102 @@
+{
+  "source": {
+    "width": 1440,
+    "height": 900
+  },
+  "regions": [
+    {
+      "id": "page",
+      "role": "page",
+      "bbox": { "x": 38, "y": 76, "width": 1250, "height": 840 }
+    }
+  ],
+  "layout": {
+    "direction": "column"
+  },
+  "hierarchy": {
+    "root": "root",
+    "children": {
+      "root": ["page"]
+    }
+  },
+  "elements": [
+    {
+      "id": "title-1",
+      "kind": "text",
+      "text": "Where Calm Meets Creativity.",
+      "regionId": "page",
+      "bbox": { "x": 438, "y": 170, "width": 652, "height": 40 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "subtitle-1",
+      "kind": "text",
+      "text": "In the rush of life, imagine a space that feels like a deep breath – gentle and grounding. Here, you can reflect, create, or simply be, with tools to reconnect with your inner stillness.",
+      "regionId": "page",
+      "bbox": { "x": 412, "y": 270, "width": 685, "height": 36 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "section-1",
+      "kind": "text",
+      "text": "Mindful Tools\nUse journals and mood trackers to build habits for well-being.",
+      "regionId": "page",
+      "bbox": { "x": 354, "y": 390, "width": 286, "height": 120 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "section-2",
+      "kind": "text",
+      "text": "Creative Space\nWrite, sketch, or dream freely in your own private digital sanctuary.",
+      "regionId": "page",
+      "bbox": { "x": 530, "y": 410, "width": 286, "height": 120 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "section-3",
+      "kind": "text",
+      "text": "Gentle Reminders\nCustom prompts to slow down, reflect, and find clarity every day.",
+      "regionId": "page",
+      "bbox": { "x": 760, "y": 410, "width": 286, "height": 120 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "button-1",
+      "kind": "button",
+      "text": "Start Your Journey →",
+      "regionId": "page",
+      "bbox": { "x": 502,  "y": 504, "width": 368, "height": 40 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "button-2",
+      "kind": "button",
+      "text": "Explore Features",
+      "regionId": "page",
+      "bbox": { "x": 680, "y": 504, "width": 173, "height": 40 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    }
+  ],
+  "layoutRelations": [
+    {
+      "type": "below",
+      "source": "button-1",
+      "target": "title-1",
+      "distance": 25
+    },
+    {
+      "type": "below",
+      "source": "button-2",
+      "target": "section-3",
+      "distance": 40
+    }
+  ],
+  "uncertainObservations": []
+}

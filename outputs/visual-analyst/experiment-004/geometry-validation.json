@@ -1,0 +1,16 @@
+{
+  "valid": false,
+  "issues": [
+    {
+      "severity": "error",
+      "code": "bbox-out-of-bounds",
+      "targetId": "page",
+      "message": "Bounding box must remain inside the source image."
+    }
+  ],
+  "stats": {
+    "regions": 1,
+    "elements": 7,
+    "relations": 2
+  }
+}

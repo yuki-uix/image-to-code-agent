@@ -2,13 +2,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { TraceableVisualAnalyst } from "./agents/visual-analyst.ts";
-import { OllamaModelClient } from "./model/ollama-model-client.ts";
+import { detectImageMimeType, detectImageSize } from "./image-size.ts";
+import { OllamaInvalidJsonError, OllamaModelClient } from "./model/ollama-model-client.ts";
 import { looksLikeSchemaEcho } from "./validation/visual-analysis-guards.ts";
 import { validateGeometry } from "./validation/geometry-validator.ts";
+import { buildVisualAnalysisInstructions, type VisualAnalysisDetail } from "./visual-analysis-instructions.ts";
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.image) {
-  console.error("Usage: npm run visual:analyze -- --image <screenshot.png> [--model qwen2.5vl:7b] [--width 1440 --height 900] [--out outputs/visual-analyst/run-1]");
+  console.error("Usage: npm run visual:analyze -- --image <screenshot.png> [--model qwen2.5vl:7b] [--detail full|coarse|outline] [--width 1440 --height 900] [--out outputs/visual-analyst/run-1]");
   process.exitCode = 1;
 } else {
   const imagePath = resolve(args.image);
@@ -21,19 +23,68 @@ if (!args.image) {
   }
 
   const prompt = await readFile(resolve("agents/visual-analyst/prompt.md"), "utf8");
-  const instructions = buildVisualAnalysisInstructions(prompt);
   const model = new OllamaModelClient({ model: args.model });
-  const analyst = new TraceableVisualAnalyst(model, instructions);
-  const result = await analyst.analyzeWithTrace({
-    image: { mimeType: mimeTypeFor(imagePath), base64: bytes.toString("base64") },
-    viewport: { width, height }
-  });
+  const outputDir = resolve(args.out ?? `outputs/visual-analyst/${new Date().toISOString().replace(/[:.]/g, "-")}`);
+  const requestedDetail = parseDetail(args.detail);
+  let detailUsed: VisualAnalysisDetail = requestedDetail;
+  let result;
+  try {
+    result = await runAnalysis({
+      detail: requestedDetail,
+      prompt,
+      model,
+      imagePath,
+      image: { mimeType: detectImageMimeType(bytes, imagePath), base64: bytes.toString("base64") },
+      viewport: { width, height }
+    });
+  } catch (error) {
+    if (error instanceof OllamaInvalidJsonError) {
+      await mkdir(outputDir, { recursive: true });
+      await writeFile(join(outputDir, `raw-analysis.${requestedDetail}.txt`), `${error.rawText.trim()}\n`);
+      const fallbacks = fallbackSequence(requestedDetail);
+      for (const fallbackDetail of fallbacks) {
+        try {
+          result = await runAnalysis({
+            detail: fallbackDetail,
+            prompt,
+            model,
+            imagePath,
+            image: { mimeType: detectImageMimeType(bytes, imagePath), base64: bytes.toString("base64") },
+            viewport: { width, height }
+          });
+          detailUsed = fallbackDetail;
+          break;
+        } catch (fallbackError) {
+          if (fallbackError instanceof OllamaInvalidJsonError) {
+            await writeFile(join(outputDir, `raw-analysis.${fallbackDetail}.txt`), `${fallbackError.rawText.trim()}\n`);
+            continue;
+          }
+          throw fallbackError;
+        }
+      }
+      if (!result) {
+        await writeJson(join(outputDir, "run.json"), {
+          agent: "visual-analyst",
+          model: args.model ?? process.env.OLLAMA_MODEL ?? "qwen2.5vl:7b",
+          image: imagePath,
+          source: { width, height },
+          prompt: "agents/visual-analyst/prompt.md",
+          detailRequested: requestedDetail,
+          detailUsed: null,
+          status: "invalid-json",
+          artifacts: [`raw-analysis.${requestedDetail}.txt`, ...fallbacks.map((item) => `raw-analysis.${item}.txt`), "run.json"]
+        });
+        throw new Error(`Ollama returned malformed JSON in ${[requestedDetail, ...fallbacks].join(", ")} mode. Raw model output was saved under ${outputDir}`);
+      }
+    }
+    throw error;
+  }
+  if (!result) throw new Error("Visual analysis did not produce a result.");
   if (looksLikeSchemaEcho(result.raw)) {
     throw new Error("Visual Analyst returned the schema instead of an analysis instance. Try rerunning after the prompt update, or switch to a stronger vision model.");
   }
   const analysis = result.analysis;
   const report = validateGeometry(analysis);
-  const outputDir = resolve(args.out ?? `outputs/visual-analyst/${new Date().toISOString().replace(/[:.]/g, "-")}`);
   await mkdir(outputDir, { recursive: true });
   await writeJson(join(outputDir, "analysis.json"), analysis);
   await writeJson(join(outputDir, "raw-analysis.json"), result.raw);
@@ -45,6 +96,9 @@ if (!args.image) {
     image: imagePath,
     source: { width, height },
     prompt: "agents/visual-analyst/prompt.md",
+    detailRequested: requestedDetail,
+    detailUsed,
+    status: detailUsed === requestedDetail ? "ok" : "fallback-coarse",
     artifacts: ["analysis.json", "raw-analysis.json", "raw-analysis.txt", "geometry-validation.json", "run.json"]
   });
   console.log(`Visual analysis written to ${outputDir}`);
@@ -61,38 +115,34 @@ function parseArgs(values: string[]): Record<string, string> {
   return result;
 }
 
-function mimeTypeFor(path: string): string {
-  return ({ ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml" } as Record<string, string>)[extname(path).toLowerCase()] ?? "application/octet-stream";
-}
-
-function detectImageSize(bytes: Buffer, extension: string): { width: number; height: number } | undefined {
-  if (extension.toLowerCase() === ".png" && bytes.length >= 24 && bytes.toString("ascii", 1, 4) === "PNG") {
-    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
-  }
-  if (extension.toLowerCase() === ".svg") {
-    const source = bytes.toString("utf8", 0, Math.min(bytes.length, 2048));
-    const width = Number(source.match(/\bwidth=["']([\d.]+)/)?.[1]);
-    const height = Number(source.match(/\bheight=["']([\d.]+)/)?.[1]);
-    if (Number.isFinite(width) && Number.isFinite(height)) return { width, height };
-  }
-  return undefined;
-}
-
 async function writeJson(path: string, value: unknown) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function buildVisualAnalysisInstructions(prompt: string): string {
-  return `${prompt.trim()}
+function parseDetail(value?: string): VisualAnalysisDetail {
+  if (value === "outline") return "outline";
+  if (value === "coarse") return "coarse";
+  return "full";
+}
 
-Return one JSON object with this contract:
-- source: { width: number, height: number }
-- regions: array of { id, role, bbox }
-- layout: object with at least direction: "row" | "column" | "mixed"
-- hierarchy: { root: string, children: Record<string, string[]> }
-- elements: array of { id, kind, regionId, bbox?, text?, visualRole?, geometrySource, certainty, visual? }
-- layoutRelations: array of { type, source, target, distance? }
-- uncertainObservations: array of { description, relatedIds }
+async function runAnalysis(input: {
+  detail: VisualAnalysisDetail;
+  prompt: string;
+  model: OllamaModelClient;
+  imagePath: string;
+  image: { mimeType: string; base64: string };
+  viewport: { width: number; height: number };
+}) {
+  const instructions = buildVisualAnalysisInstructions(input.prompt, input.detail);
+  const analyst = new TraceableVisualAnalyst(input.model, instructions);
+  return analyst.analyzeWithTrace({
+    image: input.image,
+    viewport: input.viewport
+  });
+}
 
-  Do not output a schema. Do not describe the contract. Output one analysis instance only.`;
+function fallbackSequence(requested: VisualAnalysisDetail): VisualAnalysisDetail[] {
+  if (requested === "full") return ["coarse", "outline"];
+  if (requested === "coarse") return ["outline"];
+  return [];
 }

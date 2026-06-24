@@ -1,5 +1,15 @@
 import type { ModelRequest, TraceableModelClient } from "./model-client.ts";
 
+export class OllamaInvalidJsonError extends Error {
+  readonly rawText: string;
+
+  constructor(message: string, rawText: string) {
+    super(message);
+    this.name = "OllamaInvalidJsonError";
+    this.rawText = rawText;
+  }
+}
+
 export class OllamaModelClient implements TraceableModelClient {
   private readonly model: string;
   private readonly host: string;
@@ -22,7 +32,7 @@ export class OllamaModelClient implements TraceableModelClient {
         rawText: content
       };
     } catch (error) {
-      throw new Error(`Ollama returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+      throw new OllamaInvalidJsonError(`Ollama returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`, content);
     }
   }
 

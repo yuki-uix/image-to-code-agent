@@ -1,0 +1,13 @@
+{
+  "agent": "component-architect",
+  "model": "qwen2.5vl:7b",
+  "analysis": "/Users/yuki/Documents/Codex/2026-06-22/agent-memory-codex-project-image-to/outputs/visual-analyst/experiment-006/analysis.json",
+  "prompt": "agents/component-architect/prompt.md",
+  "artifacts": [
+    "component-registry.json",
+    "raw-component-registry.json",
+    "raw-component-registry.txt",
+    "component-validation.json",
+    "run.json"
+  ]
+}

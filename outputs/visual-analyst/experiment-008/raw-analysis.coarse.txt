@@ -1,0 +1,141 @@
+{
+  "source": {
+    "width": 736,
+    "height": 1104
+  },
+  "regions": [
+    {
+      "id": "header",
+      "role": "header",
+      "bbox": { "x": 2, "y": 2, "width": 732, "height": 85 }
+    },
+    {
+      "id": "mainContent",
+      "role": "mainContent",
+      "bbox": { "x": 0, "y": 146, "width": 736, "height": 958 }
+    }
+  ],
+  "layout": {
+    "direction": "column"
+  },
+  "hierarchy": {
+    "root": "root",
+    "children": {
+      "root": ["header", "mainContent"]
+    }
+  },
+  "elements": [
+    {
+      "id": "logo",
+      "kind": "text",
+      "text": "PURELIS BEAUTY",
+      "regionId": "header",
+      "bbox": { "x": 35, "y": 47, "width": 126, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "shopButton",
+      "kind": "button",
+      "text": "Shop",
+      "regionId": "header",
+      "bbox": { "x": 198, "y": 54, "width": 36, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "bestSellersButton",
+      "kind": "button",
+      "text": "Best Sellers",
+      "regionId": "header",
+      "bbox": { "x": 273, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "skincareButton",
+      "kind": "button",
+      "text": "Skincare",
+      "regionId": "header",
+      "bbox": { "x": 342, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "haircareButton",
+      "kind": "button",
+      "text": "Haircare",
+      "regionId": "header",
+      "bbox": { "x": 401, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "aboutUsButton",
+      "kind": "button",
+      "text": "About Us",
+      "regionId": "header",
+      "bbox": { "x": 460, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "ingredientsButton",
+      "kind": "button",
+      "text": "Ingredients",
+      "regionId": "header",
+      "bbox": { "x": 531, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "journalButton",
+      "kind": "button",
+      "text": "Journal",
+      "regionId": "header",
+      "bbox": { "x": 591, "y": 54, "width": 68, "height": 20 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "searchIcon",
+      "kind": "icon",
+      "text": "Search icon",
+      "regionId": "header",
+      "bbox": { "x": 648, "y": 52, "width": 17, "height": 17 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "userIcon",
+      "kind": "icon",
+      "text": "User icon",
+      "regionId": "header",
+      "bbox": { "x": 680, "y": 52, "width": 17, "height": 17 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "cartIcon",
+      "kind": "icon",
+      "text": "Cart icon",
+      "regionId": "header",
+      "bbox": { "x": 712, "y": 52, "width": 17, "height": 17 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "mainTitle",
+      "kind": "text",
+      "text": "Good for your skin. Better for you.",
+      "regionId": "mainContent",
+      "bbox": { "x": 59, "y": 162, "width": 300, "height": 48 },
+      "geometrySource": "vlm",
+      "certainty": "high"
+    },
+    {
+      "id": "subTitle",
+      "kind": "text",
+      "text": "High performance beauty with clean, powerful ingredients that truly care.",
+      "regionId": "mainContent",
+      "bbox": { "x": 59,  ">// Continue analyzing the rest of the elements and regions as needed. The above JSON is a partial representation for illustration purposes only.</code>```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json```json

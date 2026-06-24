@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ComponentRegistry",
+  "type": "object",
+  "required": ["components"],
+  "properties": {
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/componentDefinition"
+      }
+    }
+  },
+  "$defs": {
+    "componentDefinition": {
+      "type": "object",
+      "required": ["name", "sourceElementIds", "instances", "variants", "props", "evidence"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sourceElementIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "instances": { "type": "integer", "minimum": 1 },
+        "variants": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "props": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "evidence": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
