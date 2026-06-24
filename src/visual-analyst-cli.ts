@@ -80,15 +80,37 @@ if (!args.image) {
     throw error;
   }
   if (!result) throw new Error("Visual analysis did not produce a result.");
+  const minimumElementsExpected = minimumElementsFor(detailUsed);
   if (looksLikeSchemaEcho(result.raw)) {
     throw new Error("Visual Analyst returned the schema instead of an analysis instance. Try rerunning after the prompt update, or switch to a stronger vision model.");
   }
-  const analysis = result.analysis;
-  const report = validateGeometry(analysis);
+  let analysis = result.analysis;
+  let report = validateGeometry(analysis, { minimumElements: minimumElementsExpected });
+  let initialResult: typeof result | undefined;
+  if (detailUsed !== "outline" && report.issues.some((issue) => issue.code === "coarse-element-coverage")) {
+    initialResult = result;
+    result = await runAnalysis({
+      detail: detailUsed,
+      prompt: `${prompt}\n\nCorrection for this retry: the previous analysis returned too few elements for this visually rich page. Return at least ${minimumElementsExpected} elements. Include the hero CTA, representative category cards, representative loyalty benefits, and representative product cards. Keep the whole navigation as one navBar element.`,
+      model,
+      imagePath,
+      image: { mimeType: detectImageMimeType(bytes, imagePath), base64: bytes.toString("base64") },
+      viewport: { width, height }
+    });
+    if (looksLikeSchemaEcho(result.raw)) {
+      throw new Error("Visual Analyst retry returned the schema instead of an analysis instance.");
+    }
+    analysis = result.analysis;
+    report = validateGeometry(analysis, { minimumElements: minimumElementsExpected });
+  }
   await mkdir(outputDir, { recursive: true });
   await writeJson(join(outputDir, "analysis.json"), analysis);
   await writeJson(join(outputDir, "raw-analysis.json"), result.raw);
   await writeFile(join(outputDir, "raw-analysis.txt"), `${result.rawText.trim()}\n`);
+  if (initialResult) {
+    await writeJson(join(outputDir, "raw-analysis.initial.json"), initialResult.raw);
+    await writeFile(join(outputDir, "raw-analysis.initial.txt"), `${initialResult.rawText.trim()}\n`);
+  }
   await writeJson(join(outputDir, "geometry-validation.json"), report);
   await writeJson(join(outputDir, "run.json"), {
     agent: "visual-analyst",
@@ -98,8 +120,10 @@ if (!args.image) {
     prompt: "agents/visual-analyst/prompt.md",
     detailRequested: requestedDetail,
     detailUsed,
+    minimumElementsExpected,
+    attempts: initialResult ? 2 : 1,
     status: detailUsed === requestedDetail ? "ok" : "fallback-coarse",
-    artifacts: ["analysis.json", "raw-analysis.json", "raw-analysis.txt", "geometry-validation.json", "run.json"]
+    artifacts: ["analysis.json", "raw-analysis.json", "raw-analysis.txt", ...(initialResult ? ["raw-analysis.initial.json", "raw-analysis.initial.txt"] : []), "geometry-validation.json", "run.json"]
   });
   console.log(`Visual analysis written to ${outputDir}`);
   console.log(report.valid ? "Geometry validation passed." : `Geometry validation found ${report.issues.length} issue(s).`);
@@ -145,4 +169,10 @@ function fallbackSequence(requested: VisualAnalysisDetail): VisualAnalysisDetail
   if (requested === "full") return ["coarse", "outline"];
   if (requested === "coarse") return ["outline"];
   return [];
+}
+
+function minimumElementsFor(detail: VisualAnalysisDetail): number {
+  if (detail === "full") return 16;
+  if (detail === "coarse") return 10;
+  return 3;
 }

@@ -24,9 +24,11 @@ if (!args.analysis) {
   }
   let report = validateComponentRegistry(result.registry, visualAnalysis);
   let initialResult: typeof result | undefined;
-  if (report.issues.some((issue) => issue.code === "over-merged-section-component")) {
+  const retryCodes = new Set(["over-merged-section-component", "unknown-source-element", "repeated-items-not-modeled-as-instances"]);
+  if (report.issues.some((issue) => retryCodes.has(issue.code))) {
     initialResult = result;
-    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt merged distinct top-level sections into a generic SectionHeading. Return named one-off section components instead (for example HeroSection, CategorySection, LoyaltySection, ProductCarousel). Do not use SectionHeading to group different page sections.`);
+    const availableElementIds = visualAnalysis.elements.map((element) => element.id).filter(Boolean).join(", ");
+    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt violated the evidence contract. Every sourceElementIds entry must be selected exactly from this list of visible element IDs: ${availableElementIds}. Do not cite regions, hierarchy keys, or inferred wrappers. For repeated productCard-style IDs, create a reusable item component citing the item IDs. Keep distinct top-level sections separate; do not use SectionHeading to group them.`);
     result = await retryArchitect.extractWithTrace(visualAnalysis);
     if (looksLikeComponentRegistrySchemaEcho(result.raw)) {
       throw new Error("Component Architect retry returned the schema instead of a registry instance.");

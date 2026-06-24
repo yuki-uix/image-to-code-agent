@@ -139,6 +139,10 @@ function normalizePadding(value: unknown): VisualAnalysis["layout"]["padding"] |
 }
 
 function normalizeRect(value: unknown): Rect | undefined {
+  if (Array.isArray(value) && value.length === 4 && value.every((item) => typeof item === "number" && Number.isFinite(item))) {
+    const [left, top, right, bottom] = value as number[];
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }
   const record = asRecord(value);
   const x = asNumber(record.x);
   const y = asNumber(record.y);

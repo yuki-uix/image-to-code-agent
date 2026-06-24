@@ -14,7 +14,11 @@ export type GeometryReport = {
   stats: { regions: number; elements: number; relations: number };
 };
 
-export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
+export type GeometryValidationOptions = {
+  minimumElements?: number;
+};
+
+export function validateGeometry(analysis: VisualAnalysis, options: GeometryValidationOptions = {}): GeometryReport {
   const normalized = normalizeVisualAnalysis(analysis);
   const issues: GeometryIssue[] = [];
   const ids = new Set<string>();
@@ -31,8 +35,9 @@ export function validateGeometry(analysis: VisualAnalysis): GeometryReport {
   if (normalized.elements.length === 0) {
     issues.push(issue("warning", "missing-elements", "elements", "No UI elements were returned."));
   }
-  if (normalized.elements.length > 0 && normalized.elements.length < 5 && normalized.source.height >= 900) {
-    issues.push(issue("warning", "coarse-element-coverage", "elements", "This page appears visually large, but the analysis returned very few elements."));
+  const minimumElements = options.minimumElements ?? (normalized.source.height >= 900 ? 5 : 0);
+  if (normalized.elements.length > 0 && normalized.elements.length < minimumElements) {
+    issues.push(issue("warning", "coarse-element-coverage", "elements", `This analysis returned ${normalized.elements.length} elements, below the expected minimum of ${minimumElements}.`));
   }
 
   for (const region of normalized.regions) {

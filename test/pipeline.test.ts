@@ -16,6 +16,7 @@ import { validateComponentRegistry } from "../src/validation/component-registry-
 import { validateGeometry } from "../src/validation/geometry-validator.ts";
 import { buildVisualAnalysisInstructions } from "../src/visual-analysis-instructions.ts";
 import { looksLikeSchemaEcho } from "../src/validation/visual-analysis-guards.ts";
+import { normalizeVisualAnalysis } from "../src/validation/visual-analysis-normalizer.ts";
 import { repairVisualAnalysis } from "../src/validation/visual-analysis-repair.ts";
 
 const fixture = resolve("evaluation/landing-pages/simple-search");
@@ -148,6 +149,25 @@ test("repair visual analysis fills missing hierarchy links from root and region"
   assert.deepEqual(repaired.hierarchy.children.page, ["title"]);
 });
 
+test("normalization and repair accept VLM corner-array boxes", () => {
+  const normalized = normalizeVisualAnalysis({
+    source: { width: 200, height: 100 },
+    regions: [{ id: "hero", role: "hero", bbox: [10, 20, 150, 80] }],
+    layout: { direction: "column" },
+    hierarchy: { root: "hero", children: {} },
+    elements: [{ id: "hero", kind: "hero", bbox: [10, 20, 150, 80] }],
+    layoutRelations: [],
+    uncertainObservations: []
+  });
+  const repaired = repairVisualAnalysis(normalized);
+  assert.equal(repaired.regions[0]?.id, "region-hero");
+  assert.deepEqual(repaired.regions[0]?.bbox, { x: 10, y: 20, width: 140, height: 60 });
+  assert.equal(repaired.hierarchy.root, "root");
+  assert.equal(repaired.elements[0]?.regionId, "region-hero");
+  assert.deepEqual(repaired.hierarchy.children["region-hero"], ["hero"]);
+  assert.equal(validateGeometry(repaired).valid, true);
+});
+
 test("component registry normalization fills missing fields", () => {
   const registry = normalizeComponentRegistry({
     components: {
@@ -196,6 +216,36 @@ test("component registry schema echo is distinguishable from a registry instance
   const schemaEcho = { $schema: "https://json-schema.org/draft/2020-12/schema", title: "ComponentRegistry", type: "object", properties: {} };
   assert.equal(looksLikeComponentRegistrySchemaEcho(schemaEcho), true);
   assert.equal(looksLikeComponentRegistrySchemaEcho({ components: {} }), false);
+});
+
+test("component registry rejects a repeated item group modeled only as one container", () => {
+  const visualAnalysis: VisualAnalysis = {
+    source: { width: 400, height: 400 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 400, height: 400 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["productCard1", "productCard2", "productCard3"] } },
+    elements: [
+      { id: "productCard1", kind: "product", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "productCard2", kind: "product", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "productCard3", kind: "product", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry({
+    components: {
+      ProductGrid: {
+        name: "ProductGrid",
+        sourceElementIds: ["productCard1", "productCard2", "productCard3"],
+        instances: 1,
+        variants: [],
+        props: ["products"],
+        evidence: "Three product cards are displayed."
+      }
+    }
+  }, visualAnalysis);
+  assert.ok(report.issues.some((item) => item.code === "repeated-items-not-modeled-as-instances"));
+  assert.equal(report.valid, false);
 });
 
 test("component registry validation rejects over-merged generic section headings", () => {
@@ -288,8 +338,10 @@ test("visual analysis instructions differ between full and coarse modes", () => 
   assert.match(full, /Full mode:/);
   assert.match(coarse, /Coarse mode:/);
   assert.match(outline, /Outline mode:/);
-  assert.match(coarse, /Prefer 5 to 12 elements total/);
-  assert.match(coarse, /Do not enumerate every navigation link/);
+  assert.match(coarse, /Output exactly 10 elements/);
+  assert.match(coarse, /entire top navigation\/header as one `navBar` element/);
+  assert.doesNotMatch(coarse, /Base prompt/);
+  assert.match(coarse, /Do not enumerate individual navigation links/);
   assert.match(coarse, /Do not output markdown/);
   assert.match(outline, /Prefer 3 to 8 elements total/);
   assert.match(outline, /Do not enumerate navigation links/);
@@ -321,6 +373,25 @@ test("geometry validation warns when a tall page has too few elements", () => {
     layoutRelations: [],
     uncertainObservations: []
   });
+  assert.ok(report.issues.some((item) => item.code === "coarse-element-coverage"));
+});
+
+test("geometry validation respects a mode-specific minimum element count", () => {
+  const report = validateGeometry({
+    source: { width: 736, height: 1104 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 736, height: 1104 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["header", "hero", "categories", "products", "footer"] } },
+    elements: [
+      { id: "header", kind: "nav", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "hero", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "categories", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "products", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "footer", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  }, { minimumElements: 10 });
   assert.ok(report.issues.some((item) => item.code === "coarse-element-coverage"));
 });
 

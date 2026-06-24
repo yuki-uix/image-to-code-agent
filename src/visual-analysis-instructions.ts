@@ -28,16 +28,15 @@ ${baseContract}`;
   }
 
   if (detail === "coarse") {
-    return `${prompt.trim()}
+    return `You are a Visual Analyst. Describe only visible UI structure from the supplied screenshot.
 
 Coarse mode:
-- Focus on major page sections first, not on every small child element.
-- Prefer 5 to 12 elements total unless the page is genuinely sparse.
+- Output exactly 10 elements for a visually rich ecommerce page. Keep the JSON short enough to finish in one response.
+- Reserve one element for the whole navigation/header, one for the hero, one for its primary CTA, one for benefits, two for category content, two for loyalty content, and two for product content when those areas are visible.
+- On a genuinely sparse page, return the smallest honest set instead of padding the count.
 - Use section wrappers such as \`promoBar\`, \`navBar\`, \`heroSection\`, \`benefitsSection\`, \`categorySection\`, \`rewardsSection\`, and \`productCarousel\` when visible.
-- For repeated commerce rows, include the row wrapper plus at most 1 to 3 representative child items.
-- Do not enumerate every navigation link, every icon, every product detail, or every repeated card in coarse mode.
-- Avoid long free-text copies when they make the JSON fragile; keep text fields short, and prefer headline-level text over full paragraphs.
-- Do not collapse the whole body into one generic content element.
+- Hard budget: represent an entire top navigation/header as one \`navBar\` element. Do not enumerate individual navigation links, utility icons, product details, or every repeated card in coarse mode.
+- Keep text short. Use concrete ids and kinds. Do not infer code, UX, or invisible behavior.
 - Do not output markdown, explanations, placeholder comments, or continuation notes. Stop after one complete JSON object.
 
 ${baseContract}`;

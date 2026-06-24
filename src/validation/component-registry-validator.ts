@@ -49,6 +49,11 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
     if (component.sourceElementIds.length > 1 && /sectionheading/i.test(component.name) && (citedKinds.length > 1 || citedTopLevelSections.length > 1)) {
       issues.push(issue("error", "over-merged-section-component", component.name, "This generic section-heading component merges distinct top-level sections. Keep page sections separate unless structure and page role clearly match."));
     }
+
+    const repeatedStem = sharedNumberedStem(component.sourceElementIds);
+    if (repeatedStem && component.instances === 1 && !hasRepeatedItemComponent(normalized, component.sourceElementIds)) {
+      issues.push(issue("error", "repeated-items-not-modeled-as-instances", component.name, `The repeated ${repeatedStem} elements need an item component with instances matching the cited item count.`));
+    }
   }
 
   return {
@@ -64,6 +69,17 @@ function issue(severity: ComponentRegistryIssue["severity"], code: string, targe
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function sharedNumberedStem(ids: string[]): string | undefined {
+  if (ids.length < 3) return undefined;
+  const stems = ids.map((id) => id.match(/^(.+?)(?:-|_)?\d+$/)?.[1]);
+  if (stems.some((stem) => !stem)) return undefined;
+  return uniqueStrings(stems as string[]).length === 1 ? stems[0] : undefined;
+}
+
+function hasRepeatedItemComponent(registry: ComponentRegistry, ids: string[]): boolean {
+  return Object.values(registry.components).some((component) => component.instances === ids.length && ids.every((id) => component.sourceElementIds.includes(id)));
 }
 
 function pageLevelElementIds(visualAnalysis: VisualAnalysis): Set<string> {

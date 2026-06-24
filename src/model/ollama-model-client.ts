@@ -13,10 +13,14 @@ export class OllamaInvalidJsonError extends Error {
 export class OllamaModelClient implements TraceableModelClient {
   private readonly model: string;
   private readonly host: string;
+  private readonly numPredict: number;
+  private readonly numCtx: number;
 
-  constructor(options: { model?: string; host?: string } = {}) {
+  constructor(options: { model?: string; host?: string; numPredict?: number; numCtx?: number } = {}) {
     this.model = options.model ?? process.env.OLLAMA_MODEL ?? "qwen2.5vl:7b";
     this.host = (options.host ?? process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434").replace(/\/$/, "");
+    this.numPredict = options.numPredict ?? Number(process.env.OLLAMA_NUM_PREDICT ?? 4096);
+    this.numCtx = options.numCtx ?? Number(process.env.OLLAMA_NUM_CTX ?? 8192);
   }
 
   async generateJson<T>(request: ModelRequest): Promise<T> {
@@ -50,7 +54,7 @@ export class OllamaModelClient implements TraceableModelClient {
           model: this.model,
           stream: false,
           format,
-          options: { temperature: 0 },
+          options: { temperature: 0, num_predict: this.numPredict, num_ctx: this.numCtx },
           messages: [
             { role: "system", content: request.instructions },
             {
