@@ -28,6 +28,20 @@ if (!args.analysis) {
   if (report.issues.some((issue) => retryCodes.has(issue.code))) {
     initialResult = result;
     const availableElementIds = visualAnalysis.elements.map((element) => element.id).filter(Boolean).join(", ");
+    const regionIds = new Set(visualAnalysis.regions.map((region) => region.id).filter(Boolean));
+    const unknownSourceIssues = report.issues.filter((issue) => issue.code === "unknown-source-element");
+    const regionCitationRepair = unknownSourceIssues.length > 0
+      ? ` Specific violations: ${unknownSourceIssues.map((issue) => {
+          const badId = issue.message.match(/Unknown source element id: (\S+)/)?.[1] ?? "";
+          if (badId && regionIds.has(badId)) {
+            const children = (visualAnalysis.hierarchy.children[badId] ?? [])
+              .filter((id) => visualAnalysis.elements.some((element) => element.id === id));
+            const childHint = children.length > 0 ? ` Replace "${badId}" with its child element IDs: ${children.join(", ")}.` : ` Remove "${badId}" — it is a region, not an element.`;
+            return `"${badId}" is a REGION id, not an element id.${childHint}`;
+          }
+          return `"${badId}" is not a valid element id. Remove it and use only IDs from: ${availableElementIds}.`;
+        }).join(" ")}`
+      : "";
     const propsIssues = report.issues.filter((issue) => issue.code === "empty-props-on-repeated-component" || issue.code === "empty-props-on-interactive-component");
     const propsRepair = propsIssues.length > 0
       ? ` Props violations that must be fixed: ${propsIssues.map((issue) => {
@@ -36,12 +50,24 @@ if (!args.analysis) {
           return `${issue.message}${evidenceHint}`;
         }).join(" ")} Do not leave props as an empty array when your evidence describes content that varies between instances.`
       : "";
-    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt violated the evidence contract. Every sourceElementIds entry must be selected exactly from this list of visible element IDs: ${availableElementIds}. Do not cite regions, hierarchy keys, or inferred wrappers. Cover the major visible one-off elements too: navigation, promo banners, newsletter/sign-up, and trust/benefit rows must each be represented by a component or be cited as evidence by their owning section. For EVERY numbered item family with three or more IDs (for example categoryCard1..3 or newArrivalsCard1..3), create a dedicated reusable item component. It must cite every ID in that family and set instances to the exact count. A section/container component is allowed only in addition to those item components. Keep distinct top-level sections separate; do not use SectionHeading to group them.${propsRepair}`);
+    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt violated the evidence contract. Every sourceElementIds entry must be selected exactly from this list of visible element IDs: ${availableElementIds}. Do not cite regions, hierarchy keys, or inferred wrappers. Cover the major visible one-off elements too: navigation, promo banners, newsletter/sign-up, and trust/benefit rows must each be represented by a component or be cited as evidence by their owning section. For EVERY numbered item family with three or more IDs (for example categoryCard1..3 or newArrivalsCard1..3), create a dedicated reusable item component. It must cite every ID in that family and set instances to the exact count. A section/container component is allowed only in addition to those item components. Keep distinct top-level sections separate; do not use SectionHeading to group them.${regionCitationRepair}${propsRepair}`);
     result = await retryArchitect.extractWithTrace(visualAnalysis);
     if (looksLikeComponentRegistrySchemaEcho(result.raw)) {
       throw new Error("Component Architect retry returned the schema instead of a registry instance.");
     }
     report = validateComponentRegistry(result.registry, visualAnalysis);
+    // Deterministic repair: strip invalid region citations the model could not fix.
+    // If stripping leaves a component with no valid sourceElementIds, drop it.
+    if (report.issues.some((issue) => issue.code === "unknown-source-element")) {
+      const elementIds = new Set(visualAnalysis.elements.map((element) => element.id));
+      const repairedComponents = Object.fromEntries(
+        Object.entries(result.registry.components)
+          .map(([key, component]) => [key, { ...component, sourceElementIds: component.sourceElementIds.filter((id) => elementIds.has(id)) }])
+          .filter(([, component]) => component.sourceElementIds.length > 0)
+      );
+      result = { ...result, registry: { components: repairedComponents } };
+      report = validateComponentRegistry(result.registry, visualAnalysis);
+    }
   }
   const outputDir = resolve(args.out ?? `outputs/component-architect/${new Date().toISOString().replace(/[:.]/g, "-")}`);
   await mkdir(outputDir, { recursive: true });
