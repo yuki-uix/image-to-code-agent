@@ -11,7 +11,7 @@ export class CodeGenerator {
   implement(architecture: UiArchitecture, memory: UiMemory) {
     return this.model.generateText({
       agent: "code-generator",
-      instructions: "Implement the supplied architecture in React, TypeScript, and Tailwind. Do not change component boundaries or invent product behavior. Return only TSX.",
+      instructions: "Implement the supplied architecture in React, TypeScript, and Tailwind. Do not change component boundaries or invent product behavior. Return one self-contained TSX file: define every PascalCase component used in JSX in this file, use no local component imports, and do not reference any component absent from the architecture. Return only TSX.",
       payload: { architecture, projectContract: memory.projectContract, visualTokens: memory.visualTokens }
     });
   }

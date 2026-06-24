@@ -18,6 +18,7 @@ import { buildVisualAnalysisInstructions } from "../src/visual-analysis-instruct
 import { looksLikeSchemaEcho } from "../src/validation/visual-analysis-guards.ts";
 import { normalizeVisualAnalysis } from "../src/validation/visual-analysis-normalizer.ts";
 import { repairVisualAnalysis } from "../src/validation/visual-analysis-repair.ts";
+import { validateUiArchitecture } from "../src/validation/ui-architecture-validator.ts";
 
 const fixture = resolve("evaluation/landing-pages/simple-search");
 
@@ -35,6 +36,27 @@ test("structured pipeline writes all MVP artifacts", async () => {
   }
   assert.equal(result.componentRegistry.components.Tag.instances, 3);
   assert.match(result.reactPage, /aria-label="Search resources"/);
+});
+
+test("UI architecture validation rejects undeclared layout components", () => {
+  const report = validateUiArchitecture({
+    pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],
+    components: [{ name: "ProductCard", file: "src/components/ProductCard.tsx", children: [] }],
+    layoutTree: { component: "ShopPage", children: ["FilterSidebar", "ProductCard"] },
+    fileStructure: ["src/components/ProductCard.tsx", "src/pages/ShopPage.tsx"]
+  });
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "unknown-layout-component" && item.target === "FilterSidebar"));
+});
+
+test("UI architecture validation accepts numbered instances of a declared component", () => {
+  const report = validateUiArchitecture({
+    pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],
+    components: [{ name: "ProductCard", file: "src/components/ProductCard.tsx", children: [] }],
+    layoutTree: { component: "ShopPage", children: ["ProductCard1", "ProductCard2"] },
+    fileStructure: ["src/components/ProductCard.tsx", "src/pages/ShopPage.tsx"]
+  });
+  assert.equal(report.valid, true);
 });
 
 test("editable memory applies component renames before architecture", () => {

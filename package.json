@@ -7,6 +7,7 @@
     "demo": "node src/cli.ts --image evaluation/landing-pages/simple-search/screenshot.svg --responses evaluation/landing-pages/simple-search/model-responses.json --out outputs/demo",
     "visual:analyze": "node src/visual-analyst-cli.ts",
     "component:extract": "node src/component-architect-cli.ts",
+    "page:generate": "node src/generate-page-cli.ts",
     "test": "node --test test/**/*.test.ts"
   },
   "engines": {
