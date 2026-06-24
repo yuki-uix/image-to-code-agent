@@ -1,0 +1,12 @@
+{
+  "components": {
+    "SectionHeading": {
+      "name": "SectionHeading",
+      "sourceElementIds": ["header", "heroSection", "shopByCategory", "loyaltyProgram", "bestSellers"],
+      "instances": 5,
+      "variants": [],
+      "props": ["text"],
+      "evidence": "All elements are section headings with text content, indicating they represent different sections of the page."
+    }
+  }
+}

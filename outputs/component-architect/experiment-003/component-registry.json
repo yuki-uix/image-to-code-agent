@@ -1,0 +1,52 @@
+{
+  "components": {
+    "HeroSection": {
+      "name": "HeroSection",
+      "sourceElementIds": [
+        "heroSection"
+      ],
+      "instances": 1,
+      "variants": [],
+      "props": [
+        "text"
+      ],
+      "evidence": "A single section with a heading and descriptive text."
+    },
+    "ShopByCategorySection": {
+      "name": "ShopByCategorySection",
+      "sourceElementIds": [
+        "shopByCategory"
+      ],
+      "instances": 1,
+      "variants": [],
+      "props": [
+        "text"
+      ],
+      "evidence": "A single section with a heading and descriptive text."
+    },
+    "LoyaltyProgramSection": {
+      "name": "LoyaltyProgramSection",
+      "sourceElementIds": [
+        "loyaltyProgram"
+      ],
+      "instances": 1,
+      "variants": [],
+      "props": [
+        "text"
+      ],
+      "evidence": "A single section with a heading and descriptive text."
+    },
+    "BestSellersSection": {
+      "name": "BestSellersSection",
+      "sourceElementIds": [
+        "bestSellers"
+      ],
+      "instances": 1,
+      "variants": [],
+      "props": [
+        "text"
+      ],
+      "evidence": "A single section with a heading and descriptive text."
+    }
+  }
+}

@@ -31,6 +31,7 @@ Decision rules:
 - If no reusable pattern is visible, return the smallest honest registry with one-off components and explain that in `evidence`.
 - Top-level sections on the same page usually become separate section components first; only merge them when both structure and page role are closely aligned.
 - Do not create `SectionHeading` or similar generic abstractions when the cited elements are actually different section types.
+- If visual analysis exposes only one element per top-level section, preserve those section boundaries anyway. A hero, category area, loyalty block, and product area must become separate named components rather than a shared heading component.
 
 Output checklist before finishing:
 

@@ -44,8 +44,10 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
     }
 
     const citedKinds = uniqueStrings(component.sourceElementIds.map((id) => elementsById.get(id)?.kind).filter(Boolean) as string[]);
-    if (component.sourceElementIds.length > 1 && citedKinds.length > 1 && /sectionheading/i.test(component.name)) {
-      issues.push(issue("warning", "over-merged-section-component", component.name, "This generic section-heading component merges different section roles. Keep top-level sections separate unless structure and page role clearly match."));
+    const topLevelSectionIds = pageLevelElementIds(visualAnalysis);
+    const citedTopLevelSections = component.sourceElementIds.filter((id) => topLevelSectionIds.has(id));
+    if (component.sourceElementIds.length > 1 && /sectionheading/i.test(component.name) && (citedKinds.length > 1 || citedTopLevelSections.length > 1)) {
+      issues.push(issue("error", "over-merged-section-component", component.name, "This generic section-heading component merges distinct top-level sections. Keep page sections separate unless structure and page role clearly match."));
     }
   }
 
@@ -62,4 +64,10 @@ function issue(severity: ComponentRegistryIssue["severity"], code: string, targe
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function pageLevelElementIds(visualAnalysis: VisualAnalysis): Set<string> {
+  const pageIds = visualAnalysis.regions.filter((region) => region.role === "page").map((region) => region.id);
+  const directChildren = pageIds.flatMap((pageId) => visualAnalysis.hierarchy.children[pageId] ?? []);
+  return new Set(directChildren.filter((id) => visualAnalysis.elements.some((element) => element.id === id)));
 }

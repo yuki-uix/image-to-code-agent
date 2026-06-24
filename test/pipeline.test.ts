@@ -198,7 +198,7 @@ test("component registry schema echo is distinguishable from a registry instance
   assert.equal(looksLikeComponentRegistrySchemaEcho({ components: {} }), false);
 });
 
-test("component registry validation warns on over-merged generic section headings", () => {
+test("component registry validation rejects over-merged generic section headings", () => {
   const visualAnalysis: VisualAnalysis = {
     source: { width: 736, height: 1104 },
     regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 736, height: 1104 } }],
@@ -224,6 +224,36 @@ test("component registry validation warns on over-merged generic section heading
     }
   }, visualAnalysis);
   assert.ok(report.issues.some((item) => item.code === "over-merged-section-component"));
+  assert.equal(report.valid, false);
+});
+
+test("component registry validation detects over-merging when section kinds are generic", () => {
+  const visualAnalysis: VisualAnalysis = {
+    source: { width: 736, height: 1104 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 736, height: 1104 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["heroSection", "bestSellers"] } },
+    elements: [
+      { id: "heroSection", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "bestSellers", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry({
+    components: {
+      SectionHeading: {
+        name: "SectionHeading",
+        sourceElementIds: ["heroSection", "bestSellers"],
+        instances: 2,
+        variants: [],
+        props: ["text"],
+        evidence: "Both are headings."
+      }
+    }
+  }, visualAnalysis);
+  assert.ok(report.issues.some((item) => item.code === "over-merged-section-component"));
+  assert.equal(report.valid, false);
 });
 
 test("image size detection supports jpeg", () => {
