@@ -24,11 +24,11 @@ if (!args.analysis) {
   }
   let report = validateComponentRegistry(result.registry, visualAnalysis);
   let initialResult: typeof result | undefined;
-  const retryCodes = new Set(["over-merged-section-component", "unknown-source-element", "repeated-items-not-modeled-as-instances"]);
+  const retryCodes = new Set(["over-merged-section-component", "unknown-source-element", "repeated-items-not-modeled-as-instances", "insufficient-element-coverage"]);
   if (report.issues.some((issue) => retryCodes.has(issue.code))) {
     initialResult = result;
     const availableElementIds = visualAnalysis.elements.map((element) => element.id).filter(Boolean).join(", ");
-    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt violated the evidence contract. Every sourceElementIds entry must be selected exactly from this list of visible element IDs: ${availableElementIds}. Do not cite regions, hierarchy keys, or inferred wrappers. For repeated productCard-style IDs, create a reusable item component citing the item IDs. Keep distinct top-level sections separate; do not use SectionHeading to group them.`);
+    const retryArchitect = new TraceableComponentArchitect(model, `${instructions}\n\nRepair requirement: Your previous attempt violated the evidence contract. Every sourceElementIds entry must be selected exactly from this list of visible element IDs: ${availableElementIds}. Do not cite regions, hierarchy keys, or inferred wrappers. Cover the major visible one-off elements too: navigation, promo banners, newsletter/sign-up, and trust/benefit rows must each be represented by a component or be cited as evidence by their owning section. For EVERY numbered item family with three or more IDs (for example categoryCard1..3 or newArrivalsCard1..3), create a dedicated reusable item component. It must cite every ID in that family and set instances to the exact count. A section/container component is allowed only in addition to those item components. Keep distinct top-level sections separate; do not use SectionHeading to group them.`);
     result = await retryArchitect.extractWithTrace(visualAnalysis);
     if (looksLikeComponentRegistrySchemaEcho(result.raw)) {
       throw new Error("Component Architect retry returned the schema instead of a registry instance.");

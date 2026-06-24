@@ -8,6 +8,7 @@ Minimum output requirements:
 - Prefer reusable UI building blocks over page-specific wrappers.
 - Group repeated or semantically equivalent elements into the same component when there is clear visual evidence.
 - Every component must cite the exact `sourceElementIds` that support it.
+- Preserve the page's major one-off visible elements too. Navigation, promo banners, newsletter/sign-up blocks, and trust/benefit rows need their own component or must be cited by their owning section; do not silently omit them.
 - `sourceElementIds` may contain only IDs from the input `elements` array. Never cite a region id, a hierarchy key, or a component name as evidence.
 - If a pattern appears once but is still an obvious reusable building block, you may return `instances: 1`.
 - Use short, implementation-friendly PascalCase names such as `HeroButton`, `FeatureCard`, `SectionHeading`, or `PrimaryCtaButton`.
@@ -34,7 +35,7 @@ Decision rules:
 - Do not create `SectionHeading` or similar generic abstractions when the cited elements are actually different section types.
 - If visual analysis exposes only one element per top-level section, preserve those section boundaries anyway. A hero, category area, loyalty block, and product area must become separate named components rather than a shared heading component.
 - When repeated items are present, cite the item-level IDs directly. For example, a product grid with `productCard1`, `productCard2`, and `productCard3` should produce a `ProductCard` component citing those cards, not a `ProductGrid` that cites an absent region wrapper.
-- If three or more element IDs share a numbered stem, model that repeated item directly: `productCard1`, `productCard2`, and `productCard3` require `ProductCard` with `instances: 3` and all three IDs as evidence. A grid, list, or carousel container may be added separately, but it must not replace the item component.
+- If three or more element IDs share a numbered stem, model that repeated item directly: `productCard1`, `productCard2`, and `productCard3` require `ProductCard` with `instances: 3` and all three IDs as evidence. This applies equally to IDs such as `categoryCard1..3` and `newArrivalsCard1..3`. A grid, list, carousel, or section container may be added separately, but it must not replace the item component.
 - When multiple filter controls are cited together, use a role such as `FilterSidebar`; do not call the filter area a category section. A CTA belongs to the section that contains it, not to an unrelated benefits section.
 
 Output checklist before finishing:

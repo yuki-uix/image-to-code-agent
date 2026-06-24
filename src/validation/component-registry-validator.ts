@@ -19,10 +19,20 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
   const elementsById = new Map(visualAnalysis.elements.map((element) => [element.id, element]));
   const elementIds = new Set(elementsById.keys());
   const issues: ComponentRegistryIssue[] = [];
-  let citedElements = 0;
+  const citedElementIds = new Set<string>();
 
   if (Object.keys(normalized.components).length === 0 && visualAnalysis.elements.length > 0) {
     issues.push(issue("error", "missing-components", "components", "Component Architect must return at least one component when elements exist."));
+  }
+
+  // Repetition is a property of the visual analysis, not merely of whichever
+  // elements the model happened to cite. This catches a section-level answer
+  // that silently omits visible cards such as categoryCard1..3.
+  for (const repeatedIds of repeatedItemGroups(visualAnalysis.elements.map((element) => element.id))) {
+    if (!hasRepeatedItemComponent(normalized, repeatedIds)) {
+      const stem = numberedStem(repeatedIds[0]) ?? "item";
+      issues.push(issue("error", "repeated-items-not-modeled-as-instances", stem, `Visible repeated ${stem} elements require an item component with instances: ${repeatedIds.length} and all item IDs as evidence.`));
+    }
   }
 
   for (const [key, component] of Object.entries(normalized.components)) {
@@ -37,7 +47,7 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
     }
 
     for (const elementId of component.sourceElementIds) {
-      citedElements += 1;
+      citedElementIds.add(elementId);
       if (!elementIds.has(elementId)) {
         issues.push(issue("error", "unknown-source-element", component.name, `Unknown source element id: ${elementId}`));
       }
@@ -50,16 +60,17 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
       issues.push(issue("error", "over-merged-section-component", component.name, "This generic section-heading component merges distinct top-level sections. Keep page sections separate unless structure and page role clearly match."));
     }
 
-    const repeatedStem = sharedNumberedStem(component.sourceElementIds);
-    if (repeatedStem && component.instances === 1 && !hasRepeatedItemComponent(normalized, component.sourceElementIds)) {
-      issues.push(issue("error", "repeated-items-not-modeled-as-instances", component.name, `The repeated ${repeatedStem} elements need an item component with instances matching the cited item count.`));
-    }
+  }
+
+  const minimumCitedElements = minimumCoverageCount(visualAnalysis.elements.length);
+  if (citedElementIds.size < minimumCitedElements) {
+    issues.push(issue("error", "insufficient-element-coverage", "components", `The registry cites ${citedElementIds.size} of ${visualAnalysis.elements.length} visible elements; cite at least ${minimumCitedElements} so one-off visible sections are not silently dropped.`));
   }
 
   return {
     valid: !issues.some((item) => item.severity === "error"),
     issues,
-    stats: { components: Object.keys(normalized.components).length, citedElements }
+    stats: { components: Object.keys(normalized.components).length, citedElements: citedElementIds.size }
   };
 }
 
@@ -71,11 +82,17 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-function sharedNumberedStem(ids: string[]): string | undefined {
-  if (ids.length < 3) return undefined;
-  const stems = ids.map((id) => id.match(/^(.+?)(?:-|_)?\d+$/)?.[1]);
-  if (stems.some((stem) => !stem)) return undefined;
-  return uniqueStrings(stems as string[]).length === 1 ? stems[0] : undefined;
+function repeatedItemGroups(ids: string[]): string[][] {
+  const grouped = new Map<string, string[]>();
+  for (const id of ids) {
+    const stem = numberedStem(id);
+    if (stem) grouped.set(stem, [...(grouped.get(stem) ?? []), id]);
+  }
+  return [...grouped.values()].filter((group) => group.length >= 3);
+}
+
+function numberedStem(id: string): string | undefined {
+  return id.match(/^(.+?)(?:-|_)?\d+$/)?.[1];
 }
 
 function hasRepeatedItemComponent(registry: ComponentRegistry, ids: string[]): boolean {
@@ -86,4 +103,11 @@ function pageLevelElementIds(visualAnalysis: VisualAnalysis): Set<string> {
   const pageIds = visualAnalysis.regions.filter((region) => region.role === "page").map((region) => region.id);
   const directChildren = pageIds.flatMap((pageId) => visualAnalysis.hierarchy.children[pageId] ?? []);
   return new Set(directChildren.filter((id) => visualAnalysis.elements.some((element) => element.id === id)));
+}
+
+function minimumCoverageCount(elementCount: number): number {
+  // Very small analyses can legitimately contain just a few high-level items.
+  // Once a detail pass yields a richer page, retain enough evidence for all
+  // major one-off sections as well as repeated cards.
+  return elementCount >= 10 ? Math.ceil(elementCount * 0.75) : 0;
 }

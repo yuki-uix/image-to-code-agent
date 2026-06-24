@@ -270,6 +270,49 @@ test("component registry rejects a repeated item group modeled only as one conta
   assert.equal(report.valid, false);
 });
 
+test("component registry rejects a repeated item group omitted by section components", () => {
+  const visualAnalysis: VisualAnalysis = {
+    source: { width: 400, height: 400 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 400, height: 400 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["categorySection", "categoryCard1", "categoryCard2", "categoryCard3"] } },
+    elements: [
+      { id: "categorySection", kind: "categoryContent", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "categoryCard1", kind: "shop_by_category_card", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "categoryCard2", kind: "shop_by_category_card", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "categoryCard3", kind: "shop_by_category_card", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry({
+    components: {
+      CategorySection: { name: "CategorySection", sourceElementIds: ["categorySection"], instances: 1, variants: [], props: [], evidence: "Category area." }
+    }
+  }, visualAnalysis);
+  assert.ok(report.issues.some((item) => item.code === "repeated-items-not-modeled-as-instances"));
+  assert.equal(report.valid, false);
+});
+
+test("component registry rejects low coverage for a detailed page analysis", () => {
+  const visualAnalysis: VisualAnalysis = {
+    source: { width: 400, height: 400 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 400, height: 400 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["nav", "hero", "banner", "newsletter", "trust", "footer", "card1", "card2", "card3", "card4"] } },
+    elements: ["nav", "hero", "banner", "newsletter", "trust", "footer", "card1", "card2", "card3", "card4"].map((id) => ({ id, kind: "section", regionId: "page", geometrySource: "vlm" as const, certainty: "high" as const })),
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry({
+    components: {
+      Hero: { name: "Hero", sourceElementIds: ["hero"], instances: 1, variants: [], props: [], evidence: "Hero." }
+    }
+  }, visualAnalysis);
+  assert.ok(report.issues.some((item) => item.code === "insufficient-element-coverage"));
+  assert.equal(report.valid, false);
+});
+
 test("component registry validation rejects over-merged generic section headings", () => {
   const visualAnalysis: VisualAnalysis = {
     source: { width: 736, height: 1104 },
