@@ -87,6 +87,41 @@ test("editable memory applies component renames before architecture", () => {
   assert.deepEqual(memory.decisionsAndOverrides.rename_component, { Tag: "TopicChip" });
 });
 
+test("component registry normalization infers props from evidence for repeated components", () => {
+  const registry: ComponentRegistry = {
+    components: {
+      ProductCard: {
+        name: "ProductCard",
+        sourceElementIds: ["productCard1", "productCard2", "productCard3"],
+        instances: 3,
+        variants: [],
+        props: [],
+        evidence: "Three product cards share the same structure: heading plus short descriptive copy."
+      }
+    }
+  };
+  const normalized = normalizeComponentRegistry(registry);
+  assert.ok(normalized.components.ProductCard.props.includes("title"), "should infer title from heading");
+  assert.ok(normalized.components.ProductCard.props.includes("description"), "should infer description from copy");
+});
+
+test("component registry normalization does not infer props when model already provided them", () => {
+  const registry: ComponentRegistry = {
+    components: {
+      ProductCard: {
+        name: "ProductCard",
+        sourceElementIds: ["productCard1", "productCard2"],
+        instances: 2,
+        variants: [],
+        props: ["name", "price"],
+        evidence: "Two product cards with heading and image."
+      }
+    }
+  };
+  const normalized = normalizeComponentRegistry(registry);
+  assert.deepEqual(normalized.components.ProductCard.props, ["name", "price"]);
+});
+
 test("geometry validation catches boxes outside the screenshot", () => {
   const analysis: VisualAnalysis = {
     source: { width: 100, height: 100 },
@@ -369,6 +404,66 @@ test("component registry validation detects over-merging when section kinds are 
   }, visualAnalysis);
   assert.ok(report.issues.some((item) => item.code === "over-merged-section-component"));
   assert.equal(report.valid, false);
+});
+
+test("component registry rejects repeated component with empty props", () => {
+  const registry: ComponentRegistry = {
+    components: {
+      ProductCard: {
+        name: "ProductCard",
+        sourceElementIds: ["productCard1", "productCard2", "productCard3"],
+        instances: 3,
+        variants: [],
+        props: [],
+        evidence: "Three product cards."
+      }
+    }
+  };
+  const analysis: VisualAnalysis = {
+    source: { width: 800, height: 600 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 800, height: 600 } }],
+    layout: { direction: "row" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["productCard1", "productCard2", "productCard3"] } },
+    elements: [
+      { id: "productCard1", kind: "card", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "productCard2", kind: "card", regionId: "page", geometrySource: "vlm", certainty: "high" },
+      { id: "productCard3", kind: "card", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry(registry, analysis);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "empty-props-on-repeated-component"));
+});
+
+test("component registry rejects interactive component with empty props", () => {
+  const registry: ComponentRegistry = {
+    components: {
+      CTAButton: {
+        name: "CTAButton",
+        sourceElementIds: ["ctaButton"],
+        instances: 1,
+        variants: [],
+        props: [],
+        evidence: "A call-to-action button."
+      }
+    }
+  };
+  const analysis: VisualAnalysis = {
+    source: { width: 800, height: 600 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 800, height: 600 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["ctaButton"] } },
+    elements: [
+      { id: "ctaButton", kind: "button", regionId: "page", geometrySource: "vlm", certainty: "high" }
+    ],
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const report = validateComponentRegistry(registry, analysis);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "empty-props-on-interactive-component"));
 });
 
 test("image size detection supports jpeg", () => {

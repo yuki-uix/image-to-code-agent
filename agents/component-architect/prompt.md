@@ -29,6 +29,8 @@ Decision rules:
 
 - Use `variants` only for real visual or semantic variations, such as primary vs secondary button.
 - Use `props` for meaningful configurable inputs such as label, icon, description, href, or emphasis.
+- For repeated components (`instances >= 2`), `props` must list every property that visually differs between instances — at minimum `title`, `description`, `imageSrc`, or `href` as applicable. An empty `props` on a repeated component is an error.
+- For interactive elements (buttons, links, inputs), `props` must include at least `label` or `href`. Empty `props` is only acceptable for purely structural layout wrappers with no configurable content.
 - `evidence` should briefly explain why the grouping is justified from the visual analysis.
 - If no reusable pattern is visible, return the smallest honest registry with one-off components and explain that in `evidence`.
 - Top-level sections on the same page usually become separate section components first; only merge them when both structure and page role are closely aligned.
@@ -42,6 +44,8 @@ Output checklist before finishing:
 
 - `components` is an object keyed by component name
 - every component has `name`, `sourceElementIds`, `instances`, `variants`, `props`, and `evidence`
+- every component with `instances >= 2` has at least one entry in `props`
+- every button, link, or input component has at least `label` or `href` in `props`
 - every component key matches its `name`
 - `instances >= 1`
 - `sourceElementIds.length >= 1`

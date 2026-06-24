@@ -60,6 +60,14 @@ export function validateComponentRegistry(registry: ComponentRegistry, visualAna
       issues.push(issue("error", "over-merged-section-component", component.name, "This generic section-heading component merges distinct top-level sections. Keep page sections separate unless structure and page role clearly match."));
     }
 
+    if (component.instances >= 2 && component.props.length === 0) {
+      issues.push(issue("error", "empty-props-on-repeated-component", component.name, `Repeated component ${component.name} (instances: ${component.instances}) must list the props that differ between instances, such as title, description, imageSrc, or href.`));
+    }
+
+    if (/button|link|input|cta/i.test(component.name) && component.props.length === 0) {
+      issues.push(issue("error", "empty-props-on-interactive-component", component.name, `Interactive component ${component.name} must include at least "label" or "href" in props.`));
+    }
+
   }
 
   const minimumCitedElements = minimumCoverageCount(visualAnalysis.elements.length);

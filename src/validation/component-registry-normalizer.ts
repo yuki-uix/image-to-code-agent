@@ -21,7 +21,11 @@ function normalizeDefinition(fallbackName: string, value: unknown): ComponentDef
     sourceElementIds,
     instances: asPositiveInteger(record.instances) ?? Math.max(sourceElementIds.length, 1),
     variants: uniqueStrings(asArray(record.variants).map(asString).filter(Boolean) as string[]),
-    props: uniqueStrings(asArray(record.props).map(asString).filter(Boolean) as string[]),
+    props: inferProps(
+      uniqueStrings(asArray(record.props).map(asString).filter(Boolean) as string[]),
+      asPositiveInteger(record.instances) ?? Math.max((asArray(record.sourceElementIds)).length, 1),
+      asString(record.evidence) ?? ""
+    ),
     evidence: asString(record.evidence) ?? "No evidence provided."
   };
 }
@@ -44,4 +48,25 @@ function asPositiveInteger(value: unknown): number | undefined {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+// When the model leaves props empty on a repeated component, derive them
+// from the evidence text. This keeps props populated without relying on
+// the 7B model to satisfy multiple constraints simultaneously.
+const EVIDENCE_PROP_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(heading|title|name|label)\b/i, "title"],
+  [/\b(copy|description|caption|text|subtitle)\b/i, "description"],
+  [/\b(image|photo|thumbnail|picture|img)\b/i, "imageSrc"],
+  [/\b(price|cost|amount)\b/i, "price"],
+  [/\b(href|url|link)\b/i, "href"],
+  [/\b(icon)\b/i, "icon"],
+  [/\b(badge|tag|chip)\b/i, "badge"],
+];
+
+function inferProps(modelProps: string[], instances: number, evidence: string): string[] {
+  if (modelProps.length > 0 || instances < 2 || !evidence) return modelProps;
+  const inferred = EVIDENCE_PROP_PATTERNS
+    .filter(([pattern]) => pattern.test(evidence))
+    .map(([, prop]) => prop);
+  return uniqueStrings(inferred);
 }
