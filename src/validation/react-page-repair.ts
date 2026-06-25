@@ -13,6 +13,12 @@ export function repairReactPage(source: string, report: ReactPageReport, archite
   if (rootName) repaired = replaceSelfRecursiveRootWrapper(repaired, rootName);
   repaired = replaceSelfRecursiveComponentReferences(repaired, report, rootName);
   repaired = repaired.replace(/\s+onClick=\{\(\)\s*=>\s*console\.[^}]+\}/g, "");
+  // "children" written as a string literal in JSX → proper {children} interpolation
+  repaired = repaired.replace(/>\s*"children"\s*</g, ">{children}<");
+  // {PascalCase} bare component references are always wrong in JSX (not <PascalCase/>) — remove them
+  repaired = repaired.replace(/\{\s*([A-Z][A-Za-z0-9]+)\s*\}/g, (match, name) =>
+    isDefinedComponent(repaired, name) ? "" : match
+  );
   repaired = defineMissingComponents(repaired, report);
 
   const missing = report.issues
@@ -195,7 +201,10 @@ function removeRootProps(source: string, rootName: string): string {
   const propsBody = source.match(new RegExp(`interface\\s+${escapeRegExp(propsName)}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? "";
   const propNames = [...propsBody.matchAll(/\b([A-Za-z_$][\w$]*)\??\s*:/g)].map((item) => item[1]);
   let repaired = source.replace(new RegExp(`\\n?interface\\s+${escapeRegExp(propsName)}\\s*\\{[\\s\\S]*?\\}\\n?`), "\n");
+  // Handle: const Root = ({ ... }: RootPageProps) =>
   repaired = repaired.replace(new RegExp(`const\\s+${escapeRegExp(rootName)}\\s*=\\s*\\(\\s*\\{[^}]*\\}\\s*:\\s*${escapeRegExp(propsName)}\\s*\\)\\s*=>`), `const ${rootName} = () =>`);
+  // Handle: const Root: React.FC<RootPageProps> = ({ ... }) =>
+  repaired = repaired.replace(new RegExp(`const\\s+${escapeRegExp(rootName)}\\s*:\\s*React\\.FC<${escapeRegExp(propsName)}>\\s*=\\s*\\([^)]*\\)\\s*=>`), `const ${rootName}: React.FC = () =>`);
   repaired = repaired.replace(new RegExp(`function\\s+${escapeRegExp(rootName)}\\s*\\(\\s*\\{[^}]*\\}\\s*:\\s*${escapeRegExp(propsName)}\\s*\\)`), `function ${rootName}()`);
   for (const propName of propNames) {
     repaired = repaired.replace(new RegExp(`\\{${escapeRegExp(propName)}\\}`, "g"), `"${defaultPropValue(rootName, propName)}"`);

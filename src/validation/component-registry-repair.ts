@@ -60,16 +60,17 @@ export function repairComponentRegistryCoverage(registry: ComponentRegistry, vis
     : { components: { ...registry.components, ...additions } };
 }
 
-function makeOneOff(name: string, element: { id: string; kind?: string }): {
+function makeOneOff(name: string, element: UiElement): {
   name: string; sourceElementIds: string[]; instances: number; variants: string[]; props: string[]; evidence: string;
 } {
+  const textHint = element.text ? ` Visible text: "${element.text}".` : "";
   return {
     name,
     sourceElementIds: [element.id],
     instances: 1,
     variants: [],
     props: interactiveProps(name),
-    evidence: `Visible ${element.kind ?? "element"} element ${element.id} was not cited by the model and is preserved as a one-off component.`
+    evidence: `Visible ${element.kind ?? "element"} element ${element.id} was not cited by the model and is preserved as a one-off component.${textHint}`
   };
 }
 

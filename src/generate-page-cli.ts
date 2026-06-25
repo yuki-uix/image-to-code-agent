@@ -55,6 +55,23 @@ if (!args.analysis || !args.registry || !args.image) {
     architecture = declareMissingLayoutComponents(architecture, architectureReport);
     architectureReport = validateUiArchitecture(architecture);
   }
+  // Check that architecture only uses components from the approved registry (not invented names).
+  const registryComponentNames = new Set(Object.keys(memory.componentRegistry.components));
+  const rootComponentNames = new Set(architecture.pages.map((page) => page.rootComponent));
+  const inventedComponents = architecture.components
+    .map((component) => component.name)
+    .filter((name) => !registryComponentNames.has(name) && !rootComponentNames.has(name));
+  if (inventedComponents.length > 0) {
+    const validNames = [...registryComponentNames].join(", ");
+    const feedback = `These component names are NOT in the approved componentRegistry and must be removed: ${inventedComponents.join(", ")}. Only use these approved components: ${validNames}. Do not invent component names.`;
+    console.log(`Retrying UI architecture — invented components: ${inventedComponents.join(", ")}`);
+    architecture = await new UiArchitect(model, `${defaultUiArchitectInstructions}\n\nFix these errors:\n${feedback}`).design(memory);
+    architecture = repairUiArchitecture(architecture, memory);
+    architectureReport = validateUiArchitecture(architecture);
+    architecture = declareMissingLayoutComponents(architecture, architectureReport);
+    architectureReport = validateUiArchitecture(architecture);
+  }
+
   await writeJson(join(outputDir, "ui-architecture-validation.json"), architectureReport);
   if (!architectureReport.valid) {
     await writeJson(join(outputDir, "ui-architecture.json"), architecture);
@@ -110,7 +127,8 @@ function stripCodeFence(value: string): string {
 function declareMissingLayoutComponents(architecture: UiArchitecture, report: ReturnType<typeof validateUiArchitecture>): UiArchitecture {
   const known = new Set(architecture.components.map((component) => component.name));
   const additions = report.issues
-    .filter((issue) => issue.code === "unknown-layout-component" && !known.has(issue.target))
+    .filter((issue) => (issue.code === "unknown-layout-component" || issue.code === "unknown-component-child") && !known.has(issue.target))
     .map((issue) => ({ name: issue.target, file: `src/components/${issue.target}.tsx`, children: [] }));
+  for (const addition of additions) known.add(addition.name);
   return additions.length === 0 ? architecture : { ...architecture, components: [...architecture.components, ...additions] };
 }

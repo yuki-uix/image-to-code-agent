@@ -11,6 +11,11 @@ export class CodeGenerator {
   }
 
   implement(architecture: UiArchitecture, memory: UiMemory) {
+    const rootComponent = architecture.pages[0]?.rootComponent ?? "Page";
+    const layoutChildren = (architecture.layoutTree?.children ?? []) as string[];
+    const pageSkeleton = layoutChildren.length > 0
+      ? `CRITICAL PAGE STRUCTURE — ${rootComponent} must render layoutTree.children as flat siblings in this exact order: ${layoutChildren.map((c) => `<${c} />`).join(" ")}. Each top-level component is a SIBLING, not a child of another. NEVER pass a section as a JSX child prop of another section. Do NOT add a children prop to ${layoutChildren.join(", ")} — each renders its own content internally.`
+      : "";
     return this.model.generateText({
       agent: "code-generator",
       instructions: [
@@ -24,10 +29,10 @@ export class CodeGenerator {
         "CRITICAL — never use placeholder text. Forbidden strings: 'Service 1', 'Service 2', 'Content for Card 1', 'Banner Content', 'Card Content', 'Item 1', or any pattern like '<ComponentName> Content'. If a component's evidence mentions specific text (a button label, a card title, a service name), use that exact text. For repeated components, seed the data array with distinct real values derived from evidence, not numbered placeholders.",
         "Every component in the architecture and componentRegistry must be rendered at least once in JSX, unless it is the page root.",
         "For interactive components, render the visible label from props or evidence. Never hide a component because children are missing. Do not add onClick handlers, console logging, or invented behavior.",
-        "Each section must render its own content directly — do not nest all sections inside HeroSection or any other single wrapper. Page-level siblings in layoutTree.children must be rendered as siblings in the Page JSX, not as children of the first component.",
         "Do not use undefined variables inside template strings. In mapped cards, use item.title or item.description, not bare title.",
         "Use Tailwind classes directly; merge classes manually if needed.",
         "Do not invent product behavior beyond static UI rendering.",
+        ...(pageSkeleton ? [pageSkeleton] : []),
         ...(this.repairFeedback ? [`Repair these validation errors exactly:\n${this.repairFeedback}`] : [])
       ].join(" "),
       payload: {

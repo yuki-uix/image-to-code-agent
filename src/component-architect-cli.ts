@@ -75,6 +75,28 @@ if (!args.analysis) {
       report = validateComponentRegistry(result.registry, visualAnalysis);
     }
   }
+  // Enrich evidence with element text so the code-generator can use real copy instead of placeholders.
+  const elementTextMap = new Map(
+    visualAnalysis.elements
+      .filter((element) => element.id && element.text)
+      .map((element) => [element.id, element.text as string])
+  );
+  if (elementTextMap.size > 0) {
+    const enrichedComponents = Object.fromEntries(
+      Object.entries(result.registry.components).map(([key, component]) => {
+        const texts = component.sourceElementIds.map((id) => elementTextMap.get(id)).filter((t): t is string => Boolean(t));
+        if (texts.length === 0) return [key, component];
+        const alreadyPresent = texts.every((t) => component.evidence.includes(t));
+        if (alreadyPresent) return [key, component];
+        const textNote = texts.length === 1
+          ? ` Visible text: "${texts[0]}".`
+          : ` Visible text values: ${texts.slice(0, 4).map((t) => `"${t}"`).join(", ")}.`;
+        return [key, { ...component, evidence: `${component.evidence}${textNote}` }];
+      })
+    );
+    result = { ...result, registry: { components: enrichedComponents } };
+  }
+
   const outputDir = resolve(args.out ?? `outputs/component-architect/${new Date().toISOString().replace(/[:.]/g, "-")}`);
   await mkdir(outputDir, { recursive: true });
   await writeJson(join(outputDir, "component-registry.json"), result.registry);

@@ -129,10 +129,15 @@ function componentRendersItself(source: string, componentName: string): boolean 
 }
 
 function suspiciousTemplateIdentifiers(source: string): Set<string> {
+  // Collect loop variable names from .map()/.forEach()/.filter() callbacks so they are not flagged.
+  const loopVars = new Set<string>(["i", "index"]);
+  for (const match of source.matchAll(/\.(?:map|forEach|filter|reduce)\(\s*\(?\s*([A-Za-z_$][\w$]*)/g)) {
+    loopVars.add(match[1]);
+  }
   const names = new Set<string>();
   for (const match of source.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)\s*\}/g)) {
     const name = match[1];
-    if (!["i", "index"].includes(name)) names.add(name);
+    if (!loopVars.has(name)) names.add(name);
   }
   return names;
 }
