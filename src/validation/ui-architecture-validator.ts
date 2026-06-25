@@ -24,6 +24,18 @@ export function validateUiArchitecture(architecture: UiArchitecture): UiArchitec
     if (!component.file) issues.push(issue("error", "missing-component-file", component.name, "Every component needs a file path."));
     if (files.has(component.file)) issues.push(issue("error", "duplicate-component-file", component.file, "Component file paths must be unique."));
     files.add(component.file);
+    for (const child of component.children) {
+      if (typeof child !== "string") {
+        issues.push(issue("error", "invalid-component-child", component.name, "Component children must be component-name strings, not nested component objects."));
+        continue;
+      }
+      if (child === component.name) {
+        issues.push(issue("error", "self-nested-component", component.name, "A component must not list itself as a child."));
+      }
+      if (!knownNames.has(child) && !isDeclaredNumberedInstance(child, knownNames)) {
+        issues.push(issue("error", "unknown-component-child", child, "Every component child must be declared in components or pages."));
+      }
+    }
   }
   if (new Set(componentNames).size !== componentNames.length) {
     issues.push(issue("error", "duplicate-component-name", "components", "Component names must be unique."));

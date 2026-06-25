@@ -9,11 +9,15 @@ export function repairUiArchitecture(architecture: UiArchitecture, memory: UiMem
   const declared = new Map(architecture.components.map((component) => [component.name, component]));
   const regionToComponent = new Map(memory.layoutModel.regions.map((region) => [region.id, pascalCase(region.id)]));
 
+  const knownComponentNames = new Set([
+    ...architecture.components.map((component) => component.name),
+    ...architecture.pages.map((page) => page.rootComponent),
+    ...Object.values(memory.componentRegistry.components).map((component) => component.name)
+  ]);
+
   const resolveName = (name: string): string => {
     const direct = sourceToComponent.get(name);
     if (direct) return direct;
-    const numbered = name.replace(/\d+$/, "");
-    if (numbered !== name && sourceToComponent.has(name)) return sourceToComponent.get(name) as string;
     const region = regionToComponent.get(name);
     return region ?? name;
   };
@@ -40,7 +44,14 @@ export function repairUiArchitecture(architecture: UiArchitecture, memory: UiMem
     };
   };
 
-  return { ...architecture, components: [...declared.values()], layoutTree: repairTree(architecture.layoutTree) as UiArchitecture["layoutTree"] };
+  const repairedComponents = [...declared.values()].map((component) => ({
+    ...component,
+    children: component.children
+      .map((child) => typeof child === "string" ? resolveName(child) : "")
+      .filter((child, index, values) => child && child !== component.name && values.indexOf(child) === index && knownComponentNames.has(child))
+  }));
+
+  return { ...architecture, components: repairedComponents, layoutTree: repairTree(architecture.layoutTree) as UiArchitecture["layoutTree"] };
 }
 
 function pascalCase(value: string): string {

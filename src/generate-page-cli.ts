@@ -8,6 +8,8 @@ import { buildUiMemory } from "./memory/ui-memory-store.ts";
 import { OllamaInvalidJsonError, OllamaModelClient } from "./model/ollama-model-client.ts";
 import { validateUiArchitecture } from "./validation/ui-architecture-validator.ts";
 import { repairUiArchitecture } from "./validation/ui-architecture-repair.ts";
+import { validateReactPage } from "./validation/react-page-validator.ts";
+import { repairReactPage } from "./validation/react-page-repair.ts";
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.analysis || !args.registry || !args.image) {
@@ -59,17 +61,30 @@ if (!args.analysis || !args.registry || !args.image) {
     throw new Error(`UI Architecture validation failed. See ${join(outputDir, "ui-architecture-validation.json")}`);
   }
   console.log("Generating React TSX...");
-  const reactPage = stripCodeFence(await new CodeGenerator(model).implement(architecture, memory));
+  let reactPage = stripCodeFence(await new CodeGenerator(model).implement(architecture, memory));
+  let reactPageReport = validateReactPage(reactPage, architecture, memory);
+  if (!reactPageReport.valid) {
+    const feedback = reactPageReport.issues.map((item) => `- ${item.code}: ${item.message} (${item.target})`).join("\n");
+    console.log("Retrying React TSX after validation...");
+    reactPage = stripCodeFence(await new CodeGenerator(model, feedback).implement(architecture, memory));
+    reactPageReport = validateReactPage(reactPage, architecture, memory);
+  }
+  reactPage = repairReactPage(reactPage, reactPageReport, architecture);
+  reactPageReport = validateReactPage(reactPage, architecture, memory);
 
   await writeJson(join(outputDir, "ui-architecture.json"), architecture);
+  await writeJson(join(outputDir, "react-page-validation.json"), reactPageReport);
   await writeFile(join(outputDir, "react-page.tsx"), `${reactPage.trim()}\n`);
+  if (!reactPageReport.valid) {
+    throw new Error(`React page validation failed. See ${join(outputDir, "react-page-validation.json")}`);
+  }
   await writeJson(join(outputDir, "run.json"), {
     stages: ["ui-memory", "ui-architect", "code-generator"],
     model: args.model ?? process.env.OLLAMA_MODEL ?? "qwen2.5vl:7b",
     analysis: resolve(args.analysis),
     registry: resolve(args.registry),
     image: imagePath,
-    artifacts: ["ui-memory.json", "ui-architecture.json", "ui-architecture-validation.json", "react-page.tsx", "run.json"]
+    artifacts: ["ui-memory.json", "ui-architecture.json", "ui-architecture-validation.json", "react-page-validation.json", "react-page.tsx", "run.json"]
   });
   console.log(`Generated page artifacts in ${outputDir}`);
 }

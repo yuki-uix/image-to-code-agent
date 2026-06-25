@@ -8,6 +8,8 @@ import { ReplayModelClient } from "../src/model/replay-model-client.ts";
 import { StructuredPipeline } from "../src/pipeline/structured-pipeline.ts";
 import { buildUiMemory } from "../src/memory/ui-memory-store.ts";
 import { defaultProjectContract, type ComponentRegistry, type VisualAnalysis } from "../src/domain/contracts.ts";
+import { CodeGenerator } from "../src/agents/code-generator.ts";
+import type { ModelClient, ModelRequest } from "../src/model/model-client.ts";
 import { detectImageMimeType, detectImageSize } from "../src/image-size.ts";
 import { OllamaInvalidJsonError } from "../src/model/ollama-model-client.ts";
 import { looksLikeComponentRegistrySchemaEcho } from "../src/validation/component-registry-guards.ts";
@@ -19,6 +21,9 @@ import { looksLikeSchemaEcho } from "../src/validation/visual-analysis-guards.ts
 import { normalizeVisualAnalysis } from "../src/validation/visual-analysis-normalizer.ts";
 import { repairVisualAnalysis } from "../src/validation/visual-analysis-repair.ts";
 import { validateUiArchitecture } from "../src/validation/ui-architecture-validator.ts";
+import { repairUiArchitecture } from "../src/validation/ui-architecture-repair.ts";
+import { validateReactPage } from "../src/validation/react-page-validator.ts";
+import { repairReactPage } from "../src/validation/react-page-repair.ts";
 
 const fixture = resolve("evaluation/landing-pages/simple-search");
 
@@ -59,6 +64,53 @@ test("UI architecture validation accepts numbered instances of a declared compon
   assert.equal(report.valid, true);
 });
 
+test("UI architecture validation rejects nested child objects in component declarations", () => {
+  const report = validateUiArchitecture({
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [
+      { name: "CategoryContent", file: "src/components/CategoryContent.tsx", children: [{ name: "ShopByCategoryCard" }] as unknown as string[] },
+      { name: "ShopByCategoryCard", file: "src/components/ShopByCategoryCard.tsx", children: [] }
+    ],
+    layoutTree: { component: "Root", children: ["CategoryContent"] },
+    fileStructure: ["src/components/CategoryContent.tsx", "src/components/ShopByCategoryCard.tsx"]
+  });
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "invalid-component-child" && item.target === "CategoryContent"));
+});
+
+test("UI architecture repair maps source element children back to component names", () => {
+  const componentRegistry: ComponentRegistry = {
+    components: {
+      CTAButton: { name: "CTAButton", sourceElementIds: ["ctaButton"], instances: 1, variants: [], props: ["label"], evidence: "Primary CTA label is Shop Now." }
+    }
+  };
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry
+  });
+
+  const repaired = repairUiArchitecture({
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "CTAButton", file: "src/components/CTAButton.tsx", children: ["ctaButton", "missingElement"] }],
+    layoutTree: { component: "Root", children: ["ctaButton"] },
+    fileStructure: ["src/components/CTAButton.tsx"]
+  }, memory);
+
+  assert.deepEqual(repaired.components.find((component) => component.name === "CTAButton")?.children, []);
+  assert.deepEqual(repaired.layoutTree.children, ["CTAButton"]);
+  assert.equal(validateUiArchitecture(repaired).valid, true);
+});
+
 test("editable memory applies component renames before architecture", () => {
   const visualAnalysis: VisualAnalysis = {
     source: { width: 100, height: 100 },
@@ -85,6 +137,325 @@ test("editable memory applies component renames before architecture", () => {
   assert.equal(memory.componentRegistry.components.Tag, undefined);
   assert.equal(memory.componentRegistry.components.TopicChip.name, "TopicChip");
   assert.deepEqual(memory.decisionsAndOverrides.rename_component, { Tag: "TopicChip" });
+});
+
+test("code generator receives component registry evidence and forbids third-party imports", async () => {
+  const requests: ModelRequest[] = [];
+  const model: ModelClient = {
+    async generateJson() {
+      throw new Error("not used");
+    },
+    async generateText(request) {
+      requests.push(request);
+      return "export default function Root() { return <main />; }";
+    }
+  };
+  const componentRegistry: ComponentRegistry = {
+    components: {
+      CTAButton: { name: "CTAButton", sourceElementIds: ["ctaButton"], instances: 1, variants: [], props: ["label"], evidence: "Primary CTA label is Shop Now." }
+    }
+  };
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry
+  });
+
+  await new CodeGenerator(model).implement({
+    pages: [{ name: "Home", route: "/", rootComponent: "Home" }],
+    components: [{ name: "CTAButton", file: "src/components/CTAButton.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["CTAButton"] },
+    fileStructure: ["src/components/CTAButton.tsx"]
+  }, memory);
+
+  assert.match(requests[0].instructions, /Allowed imports: React only/);
+  assert.match(requests[0].instructions, /Never hide a component/);
+  assert.deepEqual((requests[0].payload as { componentRegistry: ComponentRegistry }).componentRegistry, componentRegistry);
+});
+
+test("react page validation rejects missing renders, third-party imports, and bare template identifiers", () => {
+  const componentRegistry: ComponentRegistry = {
+    components: {
+      SpringSaleBanner: { name: "SpringSaleBanner", sourceElementIds: ["springSaleBanner"], instances: 1, variants: [], props: [], evidence: "A sale banner is visible." },
+      ShopByCategoryCard: { name: "ShopByCategoryCard", sourceElementIds: ["categoryCard1", "categoryCard2", "categoryCard3"], instances: 3, variants: [], props: ["title", "description"], evidence: "Three cards share title and description." }
+    }
+  };
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Home" }],
+    components: [
+      { name: "SpringSaleBanner", file: "src/components/SpringSaleBanner.tsx", children: [] },
+      { name: "ShopByCategoryCard", file: "src/components/ShopByCategoryCard.tsx", children: [] }
+    ],
+    layoutTree: { component: "Root", children: ["SpringSaleBanner", "ShopByCategoryCard"] },
+    fileStructure: ["src/components/SpringSaleBanner.tsx", "src/components/ShopByCategoryCard.tsx"]
+  };
+
+  const report = validateReactPage(`
+    import React from 'react';
+    import { twMerge } from 'tailwind-merge';
+    const Root = () => <main><ShopByCategoryCard description={\`Explore \${title}\`} /></main>;
+  `, architecture, memory);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "disallowed-import"));
+  assert.ok(report.issues.some((item) => item.code === "missing-component-render" && item.target === "SpringSaleBanner"));
+  assert.ok(report.issues.some((item) => item.code === "suspicious-template-identifier" && item.target === "title"));
+});
+
+test("react page repair inserts defined but missing components into the default root", () => {
+  const componentRegistry: ComponentRegistry = {
+    components: {
+      SpringSaleBanner: { name: "SpringSaleBanner", sourceElementIds: ["springSaleBanner"], instances: 1, variants: [], props: [], evidence: "A sale banner is visible." }
+    }
+  };
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Home" }],
+    components: [{ name: "SpringSaleBanner", file: "src/components/SpringSaleBanner.tsx", children: [] }],
+    layoutTree: { component: "Home", children: ["SpringSaleBanner"] },
+    fileStructure: ["src/components/SpringSaleBanner.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const Home = () => (
+      <div>
+        <main>Visible page</main>
+      </div>
+    );
+    const SpringSaleBanner = () => <section>Spring sale</section>;
+    export default Home;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory));
+
+  assert.match(repaired, /<SpringSaleBanner \/>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page validation rejects wrong default export and invented console behavior", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        CTAButton: { name: "CTAButton", sourceElementIds: ["ctaButton"], instances: 1, variants: [], props: ["label"], evidence: "Primary CTA label is Shop Now." }
+      }
+    }
+  });
+  const report = validateReactPage(`
+    import React from 'react';
+    const CTAButton = ({ label }: { label: string }) => <button onClick={() => console.log(label)}>{label}</button>;
+    const Home = () => <main><CTAButton label="Shop Now" /></main>;
+    export default Home;
+  `, {
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "CTAButton", file: "src/components/CTAButton.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["CTAButton"] },
+    fileStructure: ["src/components/CTAButton.tsx"]
+  }, memory);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "page-root-export-mismatch" && item.target === "Home"));
+  assert.ok(report.issues.some((item) => item.code === "invented-console-behavior"));
+});
+
+test("react page repair fixes root export mismatch and console-only click handlers", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        CTAButton: { name: "CTAButton", sourceElementIds: ["ctaButton"], instances: 1, variants: [], props: ["label"], evidence: "Primary CTA label is Shop Now." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "CTAButton", file: "src/components/CTAButton.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["CTAButton"] },
+    fileStructure: ["src/components/CTAButton.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const CTAButton = ({ label }: { label: string }) => <button onClick={() => console.log(label)}>{label}</button>;
+    const Home = () => <main><CTAButton label="Shop Now" /></main>;
+    export default Home;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory), architecture);
+
+  assert.match(repaired, /const Root =/);
+  assert.match(repaired, /export default Root/);
+  assert.doesNotMatch(repaired, /console\./);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page validation rejects JSX missing required interface props", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        ShopByCategoryCard: { name: "ShopByCategoryCard", sourceElementIds: ["categoryCard1"], instances: 1, variants: [], props: ["title"], evidence: "Card title is visible." }
+      }
+    }
+  });
+  const report = validateReactPage(`
+    import React from 'react';
+    interface ShopByCategoryCardProps { title: string; description: string; }
+    const ShopByCategoryCard = ({ title, description }: ShopByCategoryCardProps) => <article><h3>{title}</h3><p>{description}</p></article>;
+    const Root = () => <main><ShopByCategoryCard /></main>;
+    export default Root;
+  `, {
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "ShopByCategoryCard", file: "src/components/ShopByCategoryCard.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["ShopByCategoryCard"] },
+    fileStructure: ["src/components/ShopByCategoryCard.tsx"]
+  }, memory);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((item) => item.code === "missing-required-prop" && item.target === "ShopByCategoryCard"));
+});
+
+test("react page repair fills missing required props on self-closing JSX", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        ShopByCategoryCard: { name: "ShopByCategoryCard", sourceElementIds: ["categoryCard1"], instances: 1, variants: [], props: ["title"], evidence: "Card title is visible." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "ShopByCategoryCard", file: "src/components/ShopByCategoryCard.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["ShopByCategoryCard"] },
+    fileStructure: ["src/components/ShopByCategoryCard.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    interface ShopByCategoryCardProps { title: string; description: string; }
+    const ShopByCategoryCard = ({ title, description }: ShopByCategoryCardProps) => <article><h3>{title}</h3><p>{description}</p></article>;
+    const Root = () => <main><ShopByCategoryCard /></main>;
+    export default Root;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory), architecture);
+
+  assert.match(repaired, /<ShopByCategoryCard\s+title="Shop By Category Card"\s+description="Shop By Category Card details"\s+\/>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page validation and repair enforce zero-prop page root", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        Navigation: { name: "Navigation", sourceElementIds: ["nav"], instances: 1, variants: [], props: ["label"], evidence: "Navigation label is visible." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "Navigation", file: "src/components/Navigation.tsx", children: [] }],
+    layoutTree: { component: "Root", children: ["Navigation"] },
+    fileStructure: ["src/components/Navigation.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    interface RootProps { navigationLabel: string; }
+    const Navigation = ({ label }: { label: string }) => <nav>{label}</nav>;
+    const Root = ({ navigationLabel }: RootProps) => <main><Navigation label={navigationLabel} /></main>;
+    export default Root;
+  `;
+  const report = validateReactPage(source, architecture, memory);
+  const repaired = repairReactPage(source, report, architecture);
+
+  assert.ok(report.issues.some((item) => item.code === "page-root-requires-props"));
+  assert.doesNotMatch(repaired, /RootProps/);
+  assert.match(repaired, /const Root = \(\) =>/);
+  assert.match(repaired, /label="navigation Label"/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
 });
 
 test("component registry normalization infers props from evidence for repeated components", () => {
