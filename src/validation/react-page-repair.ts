@@ -10,29 +10,32 @@ export function repairReactPage(source: string, report: ReactPageReport, archite
     repaired = repaired.replace(new RegExp(`export\\s+default\\s+${escapeRegExp(exported)}\\s*;?`), `export default ${rootName};`);
   }
   if (rootName) repaired = removeRootProps(repaired, rootName);
+  if (rootName) repaired = replaceSelfRecursiveRootWrapper(repaired, rootName);
+  repaired = replaceSelfRecursiveComponentReferences(repaired, report, rootName);
   repaired = repaired.replace(/\s+onClick=\{\(\)\s*=>\s*console\.[^}]+\}/g, "");
+  repaired = defineMissingComponents(repaired, report);
 
   const missing = report.issues
     .filter((issue) => issue.code === "missing-component-render")
     .map((issue) => issue.target)
-    .filter((name, index, values) => isDefinedComponent(repaired, name) && values.indexOf(name) === index);
+    .filter((name, index, values) => values.indexOf(name) === index);
 
-  if (missing.length === 0) return fillMissingProps(repaired);
+  if (missing.length === 0) return finalizeRepair(fillMissingProps(repaired), rootName, architecture);
 
   const defaultComponent = defaultExportName(repaired);
-  if (!defaultComponent) return fillMissingProps(repaired);
+  if (!defaultComponent) return finalizeRepair(fillMissingProps(repaired), rootName, architecture);
 
   const declaration = componentDeclarationPattern(defaultComponent).exec(repaired);
-  if (!declaration?.index) return fillMissingProps(repaired);
+  if (declaration?.index === undefined) return finalizeRepair(fillMissingProps(repaired), rootName, architecture);
 
   const insertion = missing.map((name) => `    <${name} />`).join("\n");
   const functionBodyStart = declaration.index;
   const afterDeclaration = repaired.slice(functionBodyStart);
-  const closeIndex = afterDeclaration.indexOf("</div>");
-  if (closeIndex === -1) return fillMissingProps(repaired);
+  const closeIndex = firstRootCloseIndex(afterDeclaration);
+  if (closeIndex === -1) return finalizeRepair(fillMissingProps(repaired), rootName, architecture);
 
   const absoluteCloseIndex = functionBodyStart + closeIndex;
-  return fillMissingProps(`${repaired.slice(0, absoluteCloseIndex)}${insertion}\n  ${repaired.slice(absoluteCloseIndex)}`);
+  return finalizeRepair(fillMissingProps(`${repaired.slice(0, absoluteCloseIndex)}${insertion}\n  ${repaired.slice(absoluteCloseIndex)}`), rootName, architecture);
 }
 
 function isDefinedComponent(source: string, name: string): boolean {
@@ -56,6 +59,135 @@ function fillMissingProps(source: string): string {
     const additions = missingProps.map((prop) => `${prop}="${defaultPropValue(component, prop)}"`).join(" ");
     return `<${component}${attributes} ${additions} />`;
   });
+}
+
+function defineMissingComponents(source: string, report: ReactPageReport): string {
+  const missingNames = report.issues
+    .filter((issue) => issue.code === "missing-component-render" || issue.code === "undefined-component")
+    .map((issue) => issue.target)
+    .filter((name, index, values) => !isDefinedComponent(source, name) && values.indexOf(name) === index);
+  if (missingNames.length === 0) return source;
+  const definitions = missingNames.map((name) => `
+const ${name} = ({ content, label, title, text }: { content?: string; label?: string; title?: string; text?: string }) => (
+  <div className="rounded-2xl border border-black/10 p-4">
+    <h3 className="font-semibold">{title ?? label ?? text ?? content ?? "${humanize(name)}"}</h3>
+  </div>
+);
+`).join("\n");
+  const exportIndex = source.search(/export\s+default\s+[A-Z][A-Za-z0-9]*\s*;?/);
+  return exportIndex === -1
+    ? `${source}\n${definitions}`
+    : `${source.slice(0, exportIndex)}${definitions}\n${source.slice(exportIndex)}`;
+}
+
+function replaceSelfRecursiveRootWrapper(source: string, rootName: string): string {
+  const declaration = componentDeclarationPattern(rootName).exec(source);
+  if (!declaration) return source;
+  const before = source.slice(0, declaration.index);
+  const body = source.slice(declaration.index);
+  const repairedBody = body
+    .replace(new RegExp(`<${escapeRegExp(rootName)}(\\s*>)`), "<main$1")
+    .replace(new RegExp(`</${escapeRegExp(rootName)}>`, "g"), "</main>");
+  return `${before}${repairedBody}`;
+}
+
+function replaceSelfRecursiveComponentReferences(source: string, report: ReactPageReport, rootName?: string): string {
+  let repaired = source;
+  for (const name of report.issues.filter((issue) => issue.code === "self-recursive-component-render").map((issue) => issue.target)) {
+    if (name === rootName) continue;
+    const declaration = componentDeclarationPattern(name).exec(repaired);
+    if (!declaration) continue;
+    const before = repaired.slice(0, declaration.index);
+    const body = repaired.slice(declaration.index);
+    const nextDeclaration = body.slice(1).search(/\n\s*(?:const|function)\s+[A-Z][A-Za-z0-9]*\b/);
+    const componentSource = nextDeclaration === -1 ? body : body.slice(0, nextDeclaration + 1);
+    const rest = nextDeclaration === -1 ? "" : body.slice(nextDeclaration + 1);
+    const componentBody = componentSource
+      .replace(new RegExp(`\\s*<${escapeRegExp(name)}\\b[^>]*\\/>`, "g"), "")
+      .replace(new RegExp(`\\s*<${escapeRegExp(name)}\\b[^>]*>[\\s\\S]*?</${escapeRegExp(name)}>`, "g"), "");
+    repaired = `${before}${componentBody}${rest}`;
+  }
+  return repaired;
+}
+
+function finalizeRepair(source: string, rootName?: string, architecture?: UiArchitecture): string {
+  let repaired = source;
+  for (const name of componentDefinitionNames(repaired)) {
+    if (name === rootName) continue;
+    repaired = removeSelfReferencesFromComponent(repaired, name);
+  }
+  repaired = ensureArchitectureComponentsRendered(repaired, architecture, rootName);
+  return fillMissingProps(repaired);
+}
+
+function removeSelfReferencesFromComponent(source: string, name: string): string {
+  const declaration = componentDeclarationPattern(name).exec(source);
+  if (!declaration) return source;
+  const before = source.slice(0, declaration.index);
+  const body = source.slice(declaration.index);
+  const nextDeclaration = body.slice(1).search(/\n\s*(?:const|function)\s+[A-Z][A-Za-z0-9]*\b/);
+  const componentSource = nextDeclaration === -1 ? body : body.slice(0, nextDeclaration + 1);
+  const rest = nextDeclaration === -1 ? "" : body.slice(nextDeclaration + 1);
+  const componentBody = componentSource
+    .replace(new RegExp(`\\s*<${escapeRegExp(name)}\\b[^>]*\\/>`, "g"), "")
+    .replace(new RegExp(`\\s*<${escapeRegExp(name)}\\b[^>]*>[\\s\\S]*?</${escapeRegExp(name)}>`, "g"), "");
+  return `${before}${componentBody}${rest}`;
+}
+
+function componentDefinitionNames(source: string): string[] {
+  return [...source.matchAll(/(?:const|function)\s+([A-Z][A-Za-z0-9]*)\b/g)].map((match) => match[1]);
+}
+
+function ensureArchitectureComponentsRendered(source: string, architecture?: UiArchitecture, rootName?: string): string {
+  if (!architecture) return source;
+  const required = new Set([
+    ...layoutComponentNames(architecture.layoutTree),
+    ...architecture.components.flatMap((component) => Array.isArray(component.children) ? component.children : []),
+    ...architecture.components.map((component) => component.name)
+  ]);
+  if (rootName) required.delete(rootName);
+  const rendered = new Set([...source.matchAll(/<([A-Z][A-Za-z0-9]*)\b/g)].map((match) => match[1]));
+  const missing = [...required].filter((name) => isDefinedComponent(source, name) && !rendered.has(name));
+  if (missing.length === 0) return source;
+  return insertIntoDefaultComponent(source, missing.map((name) => `    <${name} />`).join("\n"));
+}
+
+function insertIntoDefaultComponent(source: string, insertion: string): string {
+  const defaultComponent = defaultExportName(source);
+  if (!defaultComponent) return source;
+  const declaration = componentDeclarationPattern(defaultComponent).exec(source);
+  if (declaration?.index === undefined) return source;
+  const afterDeclaration = source.slice(declaration.index);
+  const nextDeclaration = afterDeclaration.slice(1).search(/\n\s*(?:const|function)\s+[A-Z][A-Za-z0-9]*\b/);
+  const componentSource = nextDeclaration === -1 ? afterDeclaration : afterDeclaration.slice(0, nextDeclaration + 1);
+  const closeIndex = firstRootCloseIndex(componentSource);
+  if (closeIndex === -1) {
+    const rewrittenComponent = componentSource.replace(/=>\s*<([A-Z][A-Za-z0-9]*)([^>]*)\/>\s*;/, (_match, component: string, attributes: string) => `=> (\n  <main>\n    <${component}${attributes} />\n${insertion}\n  </main>\n);`);
+    if (rewrittenComponent !== componentSource) {
+      return `${source.slice(0, declaration.index)}${rewrittenComponent}${nextDeclaration === -1 ? "" : afterDeclaration.slice(nextDeclaration + 1)}`;
+    }
+    return source;
+  }
+  const absoluteCloseIndex = declaration.index + closeIndex;
+  return `${source.slice(0, absoluteCloseIndex)}${insertion}\n  ${source.slice(absoluteCloseIndex)}`;
+}
+
+function layoutComponentNames(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const record = value as Record<string, unknown>;
+  const own = typeof record.component === "string" ? [record.component] : [];
+  const children = Array.isArray(record.children) ? record.children.flatMap(layoutComponentNames) : [];
+  return [...own, ...children];
+}
+
+function firstRootCloseIndex(value: string): number {
+  const customComponentCloseIndex = value.match(/<\/[A-Z][A-Za-z0-9]*>/)?.index ?? -1;
+  const candidates = ["</div>", "</main>", "</section>"]
+    .map((token) => value.indexOf(token))
+    .concat(customComponentCloseIndex)
+    .filter((index) => index >= 0);
+  return candidates.length === 0 ? -1 : Math.min(...candidates);
 }
 
 function removeRootProps(source: string, rootName: string): string {

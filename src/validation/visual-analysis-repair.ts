@@ -34,12 +34,14 @@ export function repairVisualAnalysis(analysis: VisualAnalysis): VisualAnalysis {
     const elementIds = elements.filter((element) => element.regionId === regionId && element.id).map((element) => element.id);
     children[regionId] = uniqueStrings([...(children[regionId] ?? []), ...elementIds]);
   }
+  const knownIds = new Set([root, ...regions.map((region) => region.id), ...elements.map((element) => element.id)]);
 
   return {
     ...analysis,
     regions,
     hierarchy: { root, children },
-    elements
+    elements,
+    layoutRelations: analysis.layoutRelations.filter((relation) => knownIds.has(relation.source) && knownIds.has(relation.target))
   };
 }
 

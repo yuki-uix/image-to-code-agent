@@ -60,6 +60,7 @@ const EVIDENCE_PROP_PATTERNS: Array<[RegExp, string]> = [
   [/\b(price|cost|amount)\b/i, "price"],
   [/\b(href|url|link)\b/i, "href"],
   [/\b(icon)\b/i, "icon"],
+  [/\b(logo|logos|brand|brands)\b/i, "logos"],
   [/\b(badge|tag|chip)\b/i, "badge"],
 ];
 

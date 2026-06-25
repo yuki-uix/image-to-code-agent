@@ -24,7 +24,7 @@ export function validateUiArchitecture(architecture: UiArchitecture): UiArchitec
     if (!component.file) issues.push(issue("error", "missing-component-file", component.name, "Every component needs a file path."));
     if (files.has(component.file)) issues.push(issue("error", "duplicate-component-file", component.file, "Component file paths must be unique."));
     files.add(component.file);
-    for (const child of component.children) {
+    for (const child of Array.isArray(component.children) ? component.children : []) {
       if (typeof child !== "string") {
         issues.push(issue("error", "invalid-component-child", component.name, "Component children must be component-name strings, not nested component objects."));
         continue;

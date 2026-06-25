@@ -14,6 +14,7 @@ import { detectImageMimeType, detectImageSize } from "../src/image-size.ts";
 import { OllamaInvalidJsonError } from "../src/model/ollama-model-client.ts";
 import { looksLikeComponentRegistrySchemaEcho } from "../src/validation/component-registry-guards.ts";
 import { normalizeComponentRegistry } from "../src/validation/component-registry-normalizer.ts";
+import { repairComponentRegistryCoverage } from "../src/validation/component-registry-repair.ts";
 import { validateComponentRegistry } from "../src/validation/component-registry-validator.ts";
 import { validateGeometry } from "../src/validation/geometry-validator.ts";
 import { buildVisualAnalysisInstructions } from "../src/visual-analysis-instructions.ts";
@@ -108,6 +109,36 @@ test("UI architecture repair maps source element children back to component name
 
   assert.deepEqual(repaired.components.find((component) => component.name === "CTAButton")?.children, []);
   assert.deepEqual(repaired.layoutTree.children, ["CTAButton"]);
+  assert.equal(validateUiArchitecture(repaired).valid, true);
+});
+
+test("UI architecture repair tolerates missing component children arrays", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        HeroSection: { name: "HeroSection", sourceElementIds: ["hero"], instances: 1, variants: [], props: [], evidence: "Hero." }
+      }
+    }
+  });
+  const repaired = repairUiArchitecture({
+    pages: [{ name: "Home", route: "/", rootComponent: "Root" }],
+    components: [{ name: "HeroSection", file: "src/components/HeroSection.tsx" } as unknown as { name: string; file: string; children: string[] }],
+    layoutTree: { component: "Root", children: ["HeroSection"] },
+    fileStructure: ["src/components/HeroSection.tsx"]
+  }, memory);
+
+  assert.deepEqual(repaired.components[0]?.children, []);
   assert.equal(validateUiArchitecture(repaired).valid, true);
 });
 
@@ -458,6 +489,229 @@ test("react page validation and repair enforce zero-prop page root", () => {
   assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
 });
 
+test("react page validation and repair handle recursive roots and undefined JSX components", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        ServiceCard: { name: "ServiceCard", sourceElementIds: ["service1"], instances: 1, variants: [], props: ["text"], evidence: "Service card." },
+        CaseStudyCard: { name: "CaseStudyCard", sourceElementIds: ["case1"], instances: 1, variants: [], props: ["content"], evidence: "Case card." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Page" }],
+    components: [
+      { name: "HeroSection", file: "src/components/HeroSection.tsx", children: ["Banner"] },
+      { name: "ServiceCard", file: "src/components/ServiceCard.tsx", children: [] },
+      { name: "CaseStudyCard", file: "src/components/CaseStudyCard.tsx", children: [] }
+    ],
+    layoutTree: { component: "Page", children: ["HeroSection", "ServiceCard", "CaseStudyCard"] },
+    fileStructure: ["src/components/HeroSection.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    interface HeroSectionProps { children: React.ReactNode; }
+    const HeroSection = ({ children }: HeroSectionProps) => <section>{children}</section>;
+    const Page = () => <Page><HeroSection><Banner content="Hello" /></HeroSection></Page>;
+    export default Page;
+  `;
+  const report = validateReactPage(source, architecture, memory);
+  const repaired = repairReactPage(source, report, architecture);
+
+  assert.ok(report.issues.some((item) => item.code === "self-recursive-root-render"));
+  assert.ok(report.issues.some((item) => item.code === "undefined-component" && item.target === "Banner"));
+  assert.match(repaired, /<main>/);
+  assert.match(repaired, /const Banner =/);
+  assert.match(repaired, /const ServiceCard =/);
+  assert.match(repaired, /<ServiceCard \/>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page validation and repair reject non-root self-recursive components", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        Logo: { name: "Logo", sourceElementIds: ["logo"], instances: 1, variants: [], props: [], evidence: "Logo." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Page" }],
+    components: [{ name: "Logo", file: "src/components/Logo.tsx", children: [] }],
+    layoutTree: { component: "Page", children: ["Logo"] },
+    fileStructure: ["src/components/Logo.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const Logo = () => <div><Logo /></div>;
+    const Page = () => <main><Logo /></main>;
+    export default Page;
+  `;
+  const report = validateReactPage(source, architecture, memory);
+  const repaired = repairReactPage(source, report, architecture);
+
+  assert.ok(report.issues.some((item) => item.code === "self-recursive-component-render" && item.target === "Logo"));
+  assert.doesNotMatch(repaired, /const Logo = \(\) => <div><Logo \/><\/div>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page repair removes self references inside mixed component bodies", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        Logo: { name: "Logo", sourceElementIds: ["logo"], instances: 1, variants: [], props: [], evidence: "Logo." },
+        LogoRow: { name: "LogoRow", sourceElementIds: ["logoRow"], instances: 1, variants: [], props: [], evidence: "Logo row." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Page" }],
+    components: [
+      { name: "Logo", file: "src/components/Logo.tsx", children: [] },
+      { name: "LogoRow", file: "src/components/LogoRow.tsx", children: [] }
+    ],
+    layoutTree: { component: "Page", children: ["Logo", "LogoRow"] },
+    fileStructure: ["src/components/Logo.tsx", "src/components/LogoRow.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const LogoRow = () => <div>Logo Row</div>;
+    const Logo = () => (
+      <div>
+        <LogoRow />
+        <Logo />
+      </div>
+    );
+    const Page = () => <main><Logo /></main>;
+    export default Page;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory), architecture);
+
+  assert.doesNotMatch(repaired, /<Logo \/>[\s\S]*?<\/div>[\s\S]*?const Page/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page repair re-renders required components after removing self recursion", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        Logo: { name: "Logo", sourceElementIds: ["logo"], instances: 1, variants: [], props: [], evidence: "Logo." },
+        HeroSection: { name: "HeroSection", sourceElementIds: ["hero"], instances: 1, variants: [], props: [], evidence: "Hero." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Page" }],
+    components: [
+      { name: "HeroSection", file: "src/components/HeroSection.tsx", children: [] },
+      { name: "Logo", file: "src/components/Logo.tsx", children: [] }
+    ],
+    layoutTree: { component: "Page", children: ["HeroSection", "Logo"] },
+    fileStructure: ["src/components/HeroSection.tsx", "src/components/Logo.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const HeroSection = () => <section>Hero</section>;
+    const Page = () => <HeroSection />;
+    const Logo = () => <div><Logo /></div>;
+    export default Page;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory), architecture);
+
+  assert.match(repaired, /<Logo \/>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
+test("react page repair inserts missing components into custom root wrappers", () => {
+  const memory = buildUiMemory({
+    image: { id: "one", path: "screenshot.png", viewport: { width: 100, height: 100 } },
+    projectContract: defaultProjectContract,
+    visualAnalysis: {
+      source: { width: 100, height: 100 },
+      regions: [],
+      layout: { direction: "column" },
+      hierarchy: { root: "page", children: {} },
+      elements: [],
+      layoutRelations: [],
+      uncertainObservations: []
+    },
+    componentRegistry: {
+      components: {
+        Logo: { name: "Logo", sourceElementIds: ["logo"], instances: 1, variants: [], props: [], evidence: "Logo." },
+        HeroSection: { name: "HeroSection", sourceElementIds: ["hero"], instances: 1, variants: [], props: [], evidence: "Hero." }
+      }
+    }
+  });
+  const architecture = {
+    pages: [{ name: "Home", route: "/", rootComponent: "Page" }],
+    components: [
+      { name: "HeroSection", file: "src/components/HeroSection.tsx", children: ["Logo"] },
+      { name: "Logo", file: "src/components/Logo.tsx", children: [] }
+    ],
+    layoutTree: { component: "Page", children: ["HeroSection", "Logo"] },
+    fileStructure: ["src/components/HeroSection.tsx", "src/components/Logo.tsx"]
+  };
+  const source = `
+    import React from 'react';
+    const HeroSection = ({ children }: { children: React.ReactNode }) => <section>{children}</section>;
+    const Page = () => (
+      <HeroSection>
+        <p>Hero content</p>
+      </HeroSection>
+    );
+    const Logo = () => <div><Logo /></div>;
+    export default Page;
+  `;
+  const repaired = repairReactPage(source, validateReactPage(source, architecture, memory), architecture);
+
+  assert.match(repaired, /<Logo \/>/);
+  assert.equal(validateReactPage(repaired, architecture, memory).valid, true);
+});
+
 test("component registry normalization infers props from evidence for repeated components", () => {
   const registry: ComponentRegistry = {
     components: {
@@ -474,6 +728,23 @@ test("component registry normalization infers props from evidence for repeated c
   const normalized = normalizeComponentRegistry(registry);
   assert.ok(normalized.components.ProductCard.props.includes("title"), "should infer title from heading");
   assert.ok(normalized.components.ProductCard.props.includes("description"), "should infer description from copy");
+});
+
+test("component registry normalization infers logo props for repeated logo rows", () => {
+  const normalized = normalizeComponentRegistry({
+    components: {
+      NavigationRow: {
+        name: "NavigationRow",
+        sourceElementIds: ["logoRow", "clientLogoRow"],
+        instances: 2,
+        variants: [],
+        props: [],
+        evidence: "Two navigation rows share the same structure: a row of logos."
+      }
+    }
+  });
+
+  assert.ok(normalized.components.NavigationRow.props.includes("logos"), "should infer logos from row of logos evidence");
 });
 
 test("component registry normalization does not infer props when model already provided them", () => {
@@ -575,6 +846,23 @@ test("repair visual analysis fills missing hierarchy links from root and region"
   });
   assert.deepEqual(repaired.hierarchy.children.root, ["page"]);
   assert.deepEqual(repaired.hierarchy.children.page, ["title"]);
+});
+
+test("repair visual analysis drops layout relations with unknown endpoints", () => {
+  const repaired = repairVisualAnalysis({
+    source: { width: 100, height: 80 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 100, height: 80 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["hero"] } },
+    elements: [{ id: "hero", kind: "section", regionId: "page", geometrySource: "vlm", certainty: "high" }],
+    layoutRelations: [
+      { type: "above", source: "hero", target: "missing" },
+      { type: "below", source: "hero", target: "page" }
+    ],
+    uncertainObservations: []
+  });
+
+  assert.deepEqual(repaired.layoutRelations, [{ type: "below", source: "hero", target: "page" }]);
 });
 
 test("normalization and repair accept VLM corner-array boxes", () => {
@@ -717,6 +1005,28 @@ test("component registry rejects low coverage for a detailed page analysis", () 
   }, visualAnalysis);
   assert.ok(report.issues.some((item) => item.code === "insufficient-element-coverage"));
   assert.equal(report.valid, false);
+});
+
+test("component registry coverage repair preserves uncited visible elements", () => {
+  const visualAnalysis: VisualAnalysis = {
+    source: { width: 400, height: 400 },
+    regions: [{ id: "page", role: "page", bbox: { x: 0, y: 0, width: 400, height: 400 } }],
+    layout: { direction: "column" },
+    hierarchy: { root: "root", children: { root: ["page"], page: ["heroSection", "service1", "service2", "service3", "service4", "logoRow", "ctaBanner", "caseStudyCards", "footer", "nav"] } },
+    elements: ["heroSection", "service1", "service2", "service3", "service4", "logoRow", "ctaBanner", "caseStudyCards", "footer", "nav"].map((id) => ({ id, kind: "section", regionId: "page", geometrySource: "vlm" as const, certainty: "high" as const })),
+    layoutRelations: [],
+    uncertainObservations: []
+  };
+  const repaired = repairComponentRegistryCoverage({
+    components: {
+      HeroSection: { name: "HeroSection", sourceElementIds: ["heroSection"], instances: 1, variants: [], props: [], evidence: "Hero." },
+      ServiceCard: { name: "ServiceCard", sourceElementIds: ["service1", "service2", "service3", "service4"], instances: 4, variants: [], props: ["text"], evidence: "Services." }
+    }
+  }, visualAnalysis);
+
+  assert.ok(repaired.components.LogoRow);
+  assert.ok(repaired.components.CaseStudyCards);
+  assert.equal(validateComponentRegistry(repaired, visualAnalysis).valid, true);
 });
 
 test("component registry validation rejects over-merged generic section headings", () => {

@@ -46,7 +46,7 @@ export function repairUiArchitecture(architecture: UiArchitecture, memory: UiMem
 
   const repairedComponents = [...declared.values()].map((component) => ({
     ...component,
-    children: component.children
+    children: (Array.isArray(component.children) ? component.children : [])
       .map((child) => typeof child === "string" ? resolveName(child) : "")
       .filter((child, index, values) => child && child !== component.name && values.indexOf(child) === index && knownComponentNames.has(child))
   }));

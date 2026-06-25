@@ -28,6 +28,8 @@ export function validateReactPage(source: string, architecture: UiArchitecture, 
     issues.push(issue("error", "page-root-export-mismatch", exported ?? "missing-default-export", `Generated page must export the architecture rootComponent as default: ${[...rootComponents].join(", ")}.`));
   } else if ((componentProps(source).get(exported) ?? []).length > 0) {
     issues.push(issue("error", "page-root-requires-props", exported, "Default exported page root must not require external props."));
+  } else if (componentRendersItself(source, exported)) {
+    issues.push(issue("error", "self-recursive-root-render", exported, "Default exported page root must not render itself recursively."));
   }
 
   if (/\bconsole\./.test(source)) {
@@ -35,6 +37,17 @@ export function validateReactPage(source: string, architecture: UiArchitecture, 
   }
 
   const usedComponents = jsxComponentNames(source);
+  const definedComponents = componentDefinitionNames(source);
+  for (const componentName of definedComponents) {
+    if (componentRendersItself(source, componentName)) {
+      issues.push(issue("error", "self-recursive-component-render", componentName, `Component ${componentName} must not render itself recursively.`));
+    }
+  }
+  for (const componentName of usedComponents) {
+    if (!definedComponents.has(componentName)) {
+      issues.push(issue("error", "undefined-component", componentName, `Generated JSX uses ${componentName}, but no local component with that name is defined.`));
+    }
+  }
   for (const componentName of requiredRenderedComponentNames(architecture, memory)) {
     if (!usedComponents.has(componentName)) {
       issues.push(issue("error", "missing-component-render", componentName, `Generated JSX never renders ${componentName}, even though it appears in the approved architecture or registry.`));
@@ -54,7 +67,7 @@ export function validateReactPage(source: string, architecture: UiArchitecture, 
 function requiredRenderedComponentNames(architecture: UiArchitecture, memory: UiMemory): Set<string> {
   return new Set([
     ...layoutComponentNames(architecture.layoutTree),
-    ...architecture.components.flatMap((component) => component.children),
+    ...architecture.components.flatMap((component) => Array.isArray(component.children) ? component.children : []),
     ...Object.keys(memory.componentRegistry.components)
   ].filter((name) => !architecture.pages.some((page) => page.rootComponent === name)));
 }
@@ -72,14 +85,20 @@ function jsxComponentNames(source: string): Set<string> {
   return new Set([...source.matchAll(/<([A-Z][A-Za-z0-9]*)\b/g)].map((match) => match[1]));
 }
 
+function componentDefinitionNames(source: string): Set<string> {
+  return new Set([...source.matchAll(/(?:const|function)\s+([A-Z][A-Za-z0-9]*)\b/g)].map((match) => match[1]));
+}
+
 function missingRequiredProps(source: string): Array<{ component: string; prop: string }> {
   const propsByComponent = componentProps(source);
   const missing: Array<{ component: string; prop: string }> = [];
-  for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\b([^>]*)\/?>/g)) {
+  for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\b([^>]*?)(\/?)>/g)) {
     const component = match[1];
     const requiredProps = propsByComponent.get(component) ?? [];
     const attributes = match[2];
+    const hasChildren = match[3] !== "/" && source.slice(match.index ?? 0).includes(`</${component}>`);
     for (const prop of requiredProps) {
+      if (prop === "children" && hasChildren) continue;
       if (!new RegExp(`\\b${escapeRegExp(prop)}\\s*=`).test(attributes)) missing.push({ component, prop });
     }
   }
@@ -98,6 +117,15 @@ function componentProps(source: string): Map<string, string[]> {
 
 function defaultExportName(source: string): string | undefined {
   return source.match(/export\s+default\s+([A-Z][A-Za-z0-9]*)\s*;?/)?.[1];
+}
+
+function componentRendersItself(source: string, componentName: string): boolean {
+  const declaration = new RegExp(`(?:const|function)\\s+${escapeRegExp(componentName)}\\b`).exec(source);
+  if (!declaration) return false;
+  const rest = source.slice(declaration.index);
+  const nextDeclaration = rest.slice(1).search(/\n\s*(?:const|function)\s+[A-Z][A-Za-z0-9]*\b/);
+  const body = nextDeclaration === -1 ? rest : rest.slice(0, nextDeclaration + 1);
+  return new RegExp(`<${escapeRegExp(componentName)}\\b`).test(body);
 }
 
 function suspiciousTemplateIdentifiers(source: string): Set<string> {
