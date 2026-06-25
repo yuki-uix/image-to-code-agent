@@ -1,89 +1,81 @@
-# Image-to-Code Agent Framework
+# image-to-code
 
-An inspectable MVP for turning one screenshot into React through specialized agents and editable UI Memory.
+Turn any UI screenshot into browser-ready HTML — as a Claude Code skill, no build step required.
 
-## Run the deterministic demo
+## Skills
 
-Requires Node.js 23.6 or newer (native TypeScript type stripping):
+This repo ships two Claude Code skills. Install them by copying the `skills/` directory into your Claude skills folder.
+
+### `/image-to-code`
+
+Converts a screenshot into a self-contained HTML file that reproduces the visual design. Uses Claude's own vision — no Ollama, no local models, no external dependencies.
+
+**What it generates:**
+- React 18 + Tailwind CSS + Babel standalone (CDN, runs in any browser)
+- Exact brand colors via Tailwind arbitrary values (`bg-[#b5ff47]`)
+- Verbatim copy for all visible text — no placeholder content
+- SVG approximations for decorative illustrations
+- Correct layout structure (grid, flex, columns) matching the original
+
+**Usage:**
+```
+/image-to-code path/to/screenshot.jpg
+/image-to-code path/to/screenshot.png --out path/to/output.html
+```
+
+**Example output:** see [`outputs/`](./outputs/) for generated HTML previews.
+
+---
+
+### `/validate-html`
+
+Checks a generated HTML file for common AI output problems and optionally repairs them.
+
+**What it checks:**
+- JSX syntax errors (string literals as children, bare component references, unclosed tags)
+- Undefined component names that would throw at runtime
+- Missing CDN script tags
+- Placeholder text that wasn't replaced
+- Structural problems (components nested where they shouldn't be)
+
+**Usage:**
+```
+/validate-html path/to/output.html
+/validate-html path/to/output.html --fix
+```
+
+---
+
+## Installation
+
+Copy both skills into your Claude Code skills directory:
 
 ```sh
-npm test
-npm run demo
+# macOS
+cp -r skills/image-to-code ~/Library/Application\ Support/Claude/...your-skills-path.../
+cp -r skills/validate-html ~/Library/Application\ Support/Claude/...your-skills-path.../
 ```
 
-The demo writes these artifacts to `outputs/demo/`:
+Or clone this repo and symlink the `skills/` folder.
 
-- `layout.json`
-- `component-registry.json`
-- `ui-memory.json`
-- `ui-architecture.json`
-- `react-page.tsx`
+> The exact path depends on your Claude Code installation. Check Settings → Skills to find your skills directory.
 
-The replay responses are a test seam, not fake production intelligence. Replace `ReplayModelClient` with a multimodal implementation of `ModelClient` to analyze real screenshots; the pipeline and agents remain unchanged.
+---
 
-## Apply a user override
+## How it works
 
-Create an overrides file:
+The skills use Claude's multimodal vision to analyze the screenshot directly — no intermediate vision model, no agent pipeline. The approach:
 
-```json
-{
-  "rename_component": {
-    "Tag": "TopicChip"
-  }
-}
-```
+1. **Analyze** — Claude reads the image and extracts colors, layout structure, typography, and all visible text
+2. **Generate** — Claude writes a complete React component tree with exact hex colors and verbatim copy
+3. **Output** — a single `.html` file that opens directly in a browser
 
-Then add `--overrides path/to/overrides.json` to the CLI command. Overrides are stored in UI Memory and applied before UI Architect runs.
+This produces dramatically better visual fidelity than a pipeline built around a smaller vision model, while being simpler to install and run.
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for responsibilities, boundaries, and the next implementation slice.
+---
 
-## Tune Visual Analyst locally
+## Development history
 
-The first agent now has an independent Ollama workbench. Install Ollama and pull the default vision model:
+The `src/` directory contains an earlier multi-agent pipeline (Visual Analyst → Component Architect → UI Architect → Code Generator) built around Ollama + qwen2.5vl. That approach was useful for understanding what makes image-to-code hard — color extraction, layout inference, avoiding placeholder text — but the output quality didn't match direct Claude generation.
 
-```sh
-brew install --cask ollama
-ollama pull qwen2.5vl:7b
-```
-
-Open the Ollama application, then analyze one PNG screenshot without running the rest of the pipeline:
-
-```sh
-npm run visual:analyze -- \
-  --image /absolute/path/to/screenshot.png \
-  --out outputs/visual-analyst/experiment-001
-```
-
-Edit `agents/visual-analyst/prompt.md` between experiments. The model output, deterministic geometry report, and run metadata are written together so experiments remain comparable. Use `--model qwen2.5vl:3b` on a lower-memory machine.
-
-On denser pages you can request a lighter section-first pass:
-
-```sh
-npm run visual:analyze -- \
-  --image /absolute/path/to/complex-page.jpg \
-  --detail coarse \
-  --out outputs/visual-analyst/experiment-002
-```
-
-If even `coarse` is too verbose for the local model, you can force a page-outline pass:
-
-```sh
-npm run visual:analyze -- \
-  --image /absolute/path/to/complex-page.jpg \
-  --detail outline \
-  --out outputs/visual-analyst/experiment-003
-```
-
-When `full` mode returns malformed JSON, the CLI now retries automatically in `coarse`, then `outline`, and records the final `detailUsed` in `run.json`.
-
-## Tune Component Architect locally
-
-After a visual analysis passes validation, you can tune the next agent independently:
-
-```sh
-npm run component:extract -- \
-  --analysis outputs/visual-analyst/experiment-006/analysis.json \
-  --out outputs/component-architect/experiment-001
-```
-
-Edit `agents/component-architect/prompt.md` between experiments. Each run writes the normalized registry, raw model output, deterministic validation report, and provenance metadata together.
+The skills in `skills/` are the production deliverable. The pipeline code in `src/` is kept as reference.
