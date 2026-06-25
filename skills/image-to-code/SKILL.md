@@ -38,6 +38,7 @@ This skill is not a smarter model. It is a repeatable workflow with quality gate
 - `<image-path>` — screenshot path; required.
 - `--mode simple|structured` — default: `simple`.
 - `--framework html|react|vue` — default: `html`; ignored in structured mode unless writing an optional preview.
+- `--asset-policy crop|placeholder|none` — default: `crop`.
 - `--out` — file path for html simple mode; output directory for react/vue or structured mode.
 - `--design-system` — existing `design-system.json` to reuse or update.
 
@@ -64,6 +65,7 @@ Success criteria:
 - all readable visible text is copied verbatim
 - colors use exact hex values or token variables derived from exact hex values
 - images/photos become proportionally accurate placeholders unless real assets are available
+- visible product, hero, and card images are cropped into real assets by default when possible
 - micro-components are represented: ratings, badges, tabs, quantity selectors, filters, forms, pagination, etc.
 - repeated content uses data arrays
 - visual tokens are centralized
@@ -105,12 +107,15 @@ Identify:
 - framework, defaulting to `html`
 - output path or directory
 - optional existing design-system path
+ - asset policy, defaulting to `crop`
 
 If the image path is missing, ask for it.
 
 If the requested framework is not `html`, `react`, or `vue`, ask the user to choose one of those for now.
 
 For framework-specific output requirements, read `references/framework-output.md` before writing files.
+
+For structured-mode artifact requirements, read `references/structured-output.md` before writing JSON files.
 
 ## Step 2 — Visual audit before writing files
 
@@ -203,6 +208,7 @@ Generate framework-specific code using `references/framework-output.md`.
 Shared rules:
 - keep visible text real; never use placeholders like `Lorem ipsum`, `Service 1`, `Card Title`, `Product Name`, or `Description goes here`
 - do not use emoji as product/photo placeholders
+- crop visible image regions into `assets/` whenever `--asset-policy crop` is used and cropping is feasible
 - use exact colors or token variables
 - centralize tokens in `:root`, `tokens.css`, or framework-appropriate CSS
 - use data arrays for repeated cards, products, nav items, testimonials, services, etc.
@@ -210,55 +216,29 @@ Shared rules:
 - leaf components render content
 - avoid rendering the same visual area twice as both a container and a peer component
 - do not invent routes, nav links, products, or copy not visible in the image
+- preserve the visual mass of major product/photo placeholders instead of shrinking them into tiny icons
+- match visible brand typography cues, especially for luxury, skincare, editorial, SaaS, food, and playful retail categories
+- report approximations for unavailable imagery, unreadable text, simplified icons, and invented-looking details
 
 Framework expectations:
 - `html` output is zero-config and opens directly in a browser.
 - `react` output is framework code for an existing React project, not a full app scaffold unless the user asks.
 - `vue` output is framework code for an existing Vue project, not a full app scaffold unless the user asks.
+- If real image assets are cropped, output a directory containing code plus `assets/` rather than a single bare file unless the user explicitly requests a single-file fallback.
 
 ## Step 3B — Structured mode artifacts
 
-Write JSON artifacts instead of final framework code.
+Write JSON artifacts instead of final framework code. Follow `references/structured-output.md`.
 
-### `design-system.json`
+Required artifacts:
+- `design-system.json` for reusable visual tokens
+- `components.json` for reusable component patterns
+- `page-analysis.json` for page-specific structure, visible text, and approximations
 
-Capture reusable visual tokens:
-- `meta`
-- `colors`
-- `typography`
-- `spacing`
-- `radius`
-- `shadow`
-- optional `breakpoints`, `motion`, or `iconography` only if clearly relevant
+Optional artifact:
+- `preview.html` to demonstrate the extracted design system
 
-### `components.json`
-
-Capture reusable components:
-- component name
-- whether it is reusable
-- observed instance count
-- props
-- variants
-- token dependencies
-- notes and uncertainty
-
-### `page-analysis.json`
-
-Capture page-specific structure:
-- sections in order
-- layout per section
-- visible text
-- image placeholders
-- approximations
-- one-off sections that should not enter the reusable component system
-
-When updating an existing design system:
-- preserve stable tokens unless the new screenshot clearly contradicts them
-- add new component variants instead of replacing old ones
-- record conflicts in `meta.notes`
-- keep page-specific sections in `page-analysis.json`, not in the reusable component system
-
-An optional `preview.html` may demonstrate the extracted design system, but the JSON artifacts are the primary output.
+When updating an existing design system, preserve stable tokens, add variants, record conflicts, and keep page-specific details out of reusable artifacts.
 
 ## Step 4 — Quality gates
 
