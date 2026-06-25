@@ -97,5 +97,5 @@ Finish by telling the user:
 ## What this skill does NOT do
 
 - It does not re-generate the page from scratch. Use `/image-to-code` for that.
-- It does not check visual fidelity against the original screenshot — it can only check structural correctness. For visual review, open the file in a browser.
+- It does not check visual fidelity against the original screenshot — it can only check structural correctness.
 - It does not fix wrong colors or wrong layout if the JSX itself is syntactically valid — those require judgment against the original image.

@@ -1,81 +1,162 @@
 # image-to-code
 
-Turn any UI screenshot into browser-ready HTML — as a Claude Code skill, no build step required.
+A Claude Code skill for turning UI screenshots into either:
+
+1. a self-contained browser-ready HTML file, or
+2. reusable design-system artifacts for future screenshots.
+
+The skill is not a separate model and does not require Ollama, qwen, npm install, React install, Tailwind install, or a build step. It uses Claude/Codex vision directly, but wraps direct generation in a disciplined workflow: visual audit, exact colors, real text, component structure, CSS variables, structured artifacts, and validation.
+
+## Why not just ask Claude/Codex directly?
+
+Claude Code and Codex can already generate HTML from an image. This skill is useful because it makes the process repeatable:
+
+- fixed workflow instead of ad hoc prompting
+- explicit quality gates
+- no placeholder text
+- exact hex colors instead of default Tailwind colors
+- self-contained HTML output
+- reusable `design-system.json` in structured mode
+- clear separation between page-specific sections and reusable components
+
+It is a workflow and quality standard, not a smarter underlying model.
 
 ## Skills
 
-This repo ships two Claude Code skills. Install them by copying the `skills/` directory into your Claude skills folder.
+This repo currently ships two Claude Code skills.
 
 ### `/image-to-code`
 
-Converts a screenshot into a self-contained HTML file that reproduces the visual design. Uses Claude's own vision — no Ollama, no local models, no external dependencies.
+Main entry point.
 
-**What it generates:**
-- React 18 + Tailwind CSS + Babel standalone (CDN, runs in any browser)
-- Exact brand colors via Tailwind arbitrary values (`bg-[#b5ff47]`)
-- Verbatim copy for all visible text — no placeholder content
-- SVG approximations for decorative illustrations
-- Correct layout structure (grid, flex, columns) matching the original
+#### Simple mode
 
-**Usage:**
-```
+Default mode. Converts a screenshot into one `.html` file that opens directly in a browser.
+
+```txt
 /image-to-code path/to/screenshot.jpg
-/image-to-code path/to/screenshot.png --out path/to/output.html
+/image-to-code path/to/screenshot.jpg --out path/to/output.html
 ```
 
-**Example output:** see [`outputs/`](./outputs/) for generated HTML previews.
+Output:
+
+```txt
+output.html
+```
+
+The HTML uses:
+
+- React 18 CDN
+- ReactDOM CDN
+- Babel standalone
+- Tailwind CDN
+- exact hex colors and CSS variables
+- copied visible text when readable
+- proportional placeholders for unavailable images
+
+Simple mode is for quick page generation. It aims for a faithful first pass, not pixel-perfect reproduction.
+
+#### Structured mode
+
+Extracts reusable design-system artifacts from a screenshot.
+
+```txt
+/image-to-code path/to/screenshot.jpg --mode structured --out ./design-system
+```
+
+Output:
+
+```txt
+design-system.json
+components.json
+page-analysis.json
+preview.html        # optional
+```
+
+Structured mode is for building reusable design language across screenshots:
+
+- color palette
+- typography scale
+- spacing scale
+- radius/shadow/elevation
+- reusable components
+- page-specific sections
+- visible text inventory
+- approximations and uncertainty notes
+
+#### Using an existing design system
+
+Generate a new page using an existing design system:
+
+```txt
+/image-to-code path/to/next-page.jpg --design-system ./design-system/design-system.json --out next-page.html
+```
+
+Update an existing design system with another screenshot:
+
+```txt
+/image-to-code path/to/next-page.jpg --mode structured --design-system ./design-system/design-system.json --out ./design-system
+```
+
+The skill should merge additively: preserve stable tokens, add variants, and record conflicts instead of silently overwriting the system.
 
 ---
 
 ### `/validate-html`
 
-Checks a generated HTML file for common AI output problems and optionally repairs them.
+Auxiliary skill for checking generated HTML.
 
-**What it checks:**
-- JSX syntax errors (string literals as children, bare component references, unclosed tags)
-- Undefined component names that would throw at runtime
-- Missing CDN script tags
-- Placeholder text that wasn't replaced
-- Structural problems (components nested where they shouldn't be)
-
-**Usage:**
-```
+```txt
 /validate-html path/to/output.html
 /validate-html path/to/output.html --fix
 ```
 
----
+It checks for:
+
+- JSX syntax issues
+- missing React/Tailwind/Babel CDN tags
+- missing `#root`
+- wrong Babel script type
+- undefined component names
+- placeholder text
+- obvious structural problems
+
+It does not compare the page visually against the original screenshot.
 
 ## Installation
 
-Copy both skills into your Claude Code skills directory:
+Copy the skills into your Claude Code skills directory:
 
 ```sh
-# macOS
-cp -r skills/image-to-code ~/Library/Application\ Support/Claude/...your-skills-path.../
-cp -r skills/validate-html ~/Library/Application\ Support/Claude/...your-skills-path.../
+cp -r skills/image-to-code <your-claude-skills-dir>/
+cp -r skills/validate-html <your-claude-skills-dir>/
 ```
 
-Or clone this repo and symlink the `skills/` folder.
+Or clone this repo and symlink the skill folders.
 
-> The exact path depends on your Claude Code installation. Check Settings → Skills to find your skills directory.
+The exact skill directory depends on your Claude Code setup. Check Claude Code settings for the active skills directory.
 
----
+## Scope
 
-## How it works
+The current MVP scope is:
 
-The skills use Claude's multimodal vision to analyze the screenshot directly — no intermediate vision model, no agent pipeline. The approach:
+| Mode | Input | Output | Goal |
+|---|---|---|---|
+| simple | screenshot | self-contained HTML | quick browser-ready page |
+| structured | screenshot | JSON artifacts | reusable design system |
+| simple + design system | screenshot + `design-system.json` | self-contained HTML | cross-page visual consistency |
+| structured + design system | screenshot + `design-system.json` | updated JSON artifacts | incremental design-system growth |
 
-1. **Analyze** — Claude reads the image and extracts colors, layout structure, typography, and all visible text
-2. **Generate** — Claude writes a complete React component tree with exact hex colors and verbatim copy
-3. **Output** — a single `.html` file that opens directly in a browser
-
-This produces dramatically better visual fidelity than a pipeline built around a smaller vision model, while being simpler to install and run.
-
----
+Visual calibration against a browser-rendered screenshot is intentionally not the core MVP. It may become a later advanced workflow, but the current product promise is zero-config screenshot-to-HTML and screenshot-to-design-system.
 
 ## Development history
 
-The `src/` directory contains an earlier multi-agent pipeline (Visual Analyst → Component Architect → UI Architect → Code Generator) built around Ollama + qwen2.5vl. That approach was useful for understanding what makes image-to-code hard — color extraction, layout inference, avoiding placeholder text — but the output quality didn't match direct Claude generation.
+The `src/` directory contains an earlier multi-agent pipeline:
 
-The skills in `skills/` are the production deliverable. The pipeline code in `src/` is kept as reference.
+```txt
+Visual Analyst → Component Architect → UI Architect → Code Generator
+```
+
+That pipeline uses local model tooling and was useful for understanding image-to-code failure modes: missing text, over-merged components, placeholder generation, invalid JSX, and weak layout hierarchy.
+
+The production-facing deliverable is the `skills/` directory. The pipeline remains as reference and experimentation infrastructure.
