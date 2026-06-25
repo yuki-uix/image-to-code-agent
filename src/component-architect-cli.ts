@@ -5,8 +5,9 @@ import { TraceableComponentArchitect } from "./agents/component-architect.ts";
 import type { VisualAnalysis } from "./domain/contracts.ts";
 import { OllamaModelClient } from "./model/ollama-model-client.ts";
 import { looksLikeComponentRegistrySchemaEcho } from "./validation/component-registry-guards.ts";
-import { validateComponentRegistry } from "./validation/component-registry-validator.ts";
+import { normalizeComponentRegistry } from "./validation/component-registry-normalizer.ts";
 import { repairComponentRegistryCoverage } from "./validation/component-registry-repair.ts";
+import { validateComponentRegistry } from "./validation/component-registry-validator.ts";
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.analysis) {
@@ -70,7 +71,7 @@ if (!args.analysis) {
       report = validateComponentRegistry(result.registry, visualAnalysis);
     }
     if (report.issues.some((issue) => issue.code === "insufficient-element-coverage")) {
-      result = { ...result, registry: repairComponentRegistryCoverage(result.registry, visualAnalysis) };
+      result = { ...result, registry: normalizeComponentRegistry(repairComponentRegistryCoverage(result.registry, visualAnalysis)) };
       report = validateComponentRegistry(result.registry, visualAnalysis);
     }
   }

@@ -57,6 +57,7 @@ Rules:
 - regions: one entry covering the full source with role "page"
 - elements: 5 to 15 clearly visible items from the requested area. Use numbered ids for repeated items: productCard1, productCard2, categoryCard1, etc.
 - Every element needs: id, kind, regionId, bbox { x, y, width, height }, geometrySource "vlm", certainty "high"
+- text: include the exact visible text for every element that contains readable copy (headings, labels, button text, card titles, descriptions). If you can only read part of the text, include what you can see. Only omit text for purely decorative visual elements (background images, dividers). Never leave text as null when copy is visible.
 - hierarchy: root → page → [element ids]
 - layout: { "direction": "column" }
 - layoutRelations: [] (empty is fine)
@@ -67,7 +68,7 @@ Example shape:
   "source": { "width": ${source.width}, "height": ${source.height} },
   "regions": [{ "id": "page", "role": "page", "bbox": { "x": 0, "y": 0, "width": ${source.width}, "height": ${source.height} } }],
   "elements": [
-    { "id": "productCard1", "kind": "card", "regionId": "page", "bbox": { "x": 100, "y": 200, "width": 300, "height": 400 }, "geometrySource": "vlm", "certainty": "high" }
+    { "id": "productCard1", "kind": "card", "text": "Glow Serum", "regionId": "page", "bbox": { "x": 100, "y": 200, "width": 300, "height": 400 }, "geometrySource": "vlm", "certainty": "high" }
   ],
   "hierarchy": { "root": "root", "children": { "root": ["page"], "page": ["productCard1"] } },
   "layout": { "direction": "column" },

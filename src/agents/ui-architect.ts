@@ -27,6 +27,8 @@ export const defaultUiArchitectInstructions = [
   "Preserve the approved componentRegistry; represent repeated components once in the file tree.",
   "Use component names from componentRegistry, not source element IDs. Example: use CTAButton, not ctaButton.",
   "components[].children must be an array of component-name strings only. Do not put nested objects, element IDs, region IDs, or lowercase visual element names there.",
-  "layoutTree must use type-level component names only: use ProductCard, not ProductCard1 through ProductCard12; use CategoryFilter, not individual filter-control names.",
-  "Keep top-level sections as siblings in page order unless the registry evidence says one component owns another."
+  "layoutTree must use type-level component names only: use ProductCard, not ProductCard1 through ProductCard12; use CaseStudyCard, not CaseCard1/CaseCard2/CaseCard3. Never put numbered instance names in layoutTree.",
+  "Keep top-level sections as siblings in page order unless the registry evidence says one component owns another.",
+  "If a section component (e.g. CaseStudySection) already covers a repeated item (e.g. CaseStudyCard), do not also list the repeated item separately in layoutTree — the section renders the items internally.",
+  "Do not list the same visual area twice under different names (e.g. CaseStudySection and CaseStudyCards are the same area — pick one and omit the other)."
 ].join(" ");
