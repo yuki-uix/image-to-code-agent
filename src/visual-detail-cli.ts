@@ -48,7 +48,34 @@ if (!args.image || !args.analysis || !args.focus) {
 
 function detailInstructions(focus: string, source: { width: number; height: number }): string {
   return `You are the detail pass of a screenshot analysis pipeline. Inspect only this requested area: ${focus}.
-Return one compact JSON VisualAnalysis object. Source is ${source.width} by ${source.height}. Include one page region covering the source and 4 to 10 clearly visible elements from the requested area only. Use concrete repeated item ids such as categoryCard1 or productCard1 when visible. Do not repeat navigation, hero, or unrelated sections. Every element must have id, kind, regionId, bbox, geometrySource "vlm", and certainty. Use bbox objects { x, y, width, height }. Return JSON only.`;
+
+Return a single JSON object with exactly these top-level keys: source, regions, elements, hierarchy, layout, layoutRelations, uncertainObservations. Do not wrap them inside page_region or any other key.
+
+Source dimensions: { "width": ${source.width}, "height": ${source.height} }
+
+Rules:
+- regions: one entry covering the full source with role "page"
+- elements: 5 to 15 clearly visible items from the requested area. Use numbered ids for repeated items: productCard1, productCard2, categoryCard1, etc.
+- Every element needs: id, kind, regionId, bbox { x, y, width, height }, geometrySource "vlm", certainty "high"
+- hierarchy: root → page → [element ids]
+- layout: { "direction": "column" }
+- layoutRelations: [] (empty is fine)
+- uncertainObservations: []
+
+Example shape:
+{
+  "source": { "width": ${source.width}, "height": ${source.height} },
+  "regions": [{ "id": "page", "role": "page", "bbox": { "x": 0, "y": 0, "width": ${source.width}, "height": ${source.height} } }],
+  "elements": [
+    { "id": "productCard1", "kind": "card", "regionId": "page", "bbox": { "x": 100, "y": 200, "width": 300, "height": 400 }, "geometrySource": "vlm", "certainty": "high" }
+  ],
+  "hierarchy": { "root": "root", "children": { "root": ["page"], "page": ["productCard1"] } },
+  "layout": { "direction": "column" },
+  "layoutRelations": [],
+  "uncertainObservations": []
+}
+
+Return JSON only. Do not include explanations.`;
 }
 
 function mergeVisualAnalyses(base: VisualAnalysis, detail: VisualAnalysis): VisualAnalysis {
