@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 function usage() {
@@ -68,7 +68,7 @@ async function main() {
 
     const outputName = safeFileName(spec.output ?? `${id}.png`);
     const outputPath = join(outDir, outputName.endsWith(".png") ? outputName : `${outputName}.png`);
-    const tempPath = join(outDir, `.${id}.tmp`);
+    const tempPath = join(outDir, `.${id}.tmp${extname(sourceImage) || ".img"}`);
 
     await mkdir(dirname(outputPath), { recursive: true });
     await copyFile(sourceImage, tempPath);

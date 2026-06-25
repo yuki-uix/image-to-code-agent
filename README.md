@@ -142,6 +142,18 @@ It checks for:
 
 It does not validate React/Vue project code and does not compare the page visually against the original screenshot.
 
+### Helper scripts
+
+The image-to-code skill includes small deterministic helpers:
+
+```txt
+skills/image-to-code/scripts/crop-assets.mjs
+skills/image-to-code/scripts/check-structured-output.mjs
+```
+
+- `crop-assets.mjs` crops real image regions from a screenshot into `assets/`.
+- `check-structured-output.mjs` validates the minimum structured-mode JSON contract.
+
 ## Installation
 
 There are two ways to use this repo.

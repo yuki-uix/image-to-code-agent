@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { Buffer } from "node:buffer";
 import { ReplayModelClient } from "../src/model/replay-model-client.ts";
@@ -28,6 +29,30 @@ import { repairReactPage } from "../src/validation/react-page-repair.ts";
 
 const fixture = resolve("evaluation/landing-pages/simple-search");
 
+function makeBmp(width: number, height: number): Buffer {
+  const rowSize = Math.ceil((width * 3) / 4) * 4;
+  const pixelSize = rowSize * height;
+  const buffer = Buffer.alloc(54 + pixelSize);
+  buffer.write("BM", 0);
+  buffer.writeUInt32LE(buffer.length, 2);
+  buffer.writeUInt32LE(54, 10);
+  buffer.writeUInt32LE(40, 14);
+  buffer.writeInt32LE(width, 18);
+  buffer.writeInt32LE(height, 22);
+  buffer.writeUInt16LE(1, 26);
+  buffer.writeUInt16LE(24, 28);
+  buffer.writeUInt32LE(pixelSize, 34);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const offset = 54 + (height - 1 - y) * rowSize + x * 3;
+      buffer[offset] = x < width / 2 ? 32 : 220;
+      buffer[offset + 1] = y < height / 2 ? 180 : 80;
+      buffer[offset + 2] = 120;
+    }
+  }
+  return buffer;
+}
+
 test("structured pipeline writes all MVP artifacts", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "image-to-code-"));
   const model = await ReplayModelClient.fromFile(join(fixture, "model-responses.json"));
@@ -42,6 +67,89 @@ test("structured pipeline writes all MVP artifacts", async () => {
   }
   assert.equal(result.componentRegistry.components.Tag.instances, 3);
   assert.match(result.reactPage, /aria-label="Search resources"/);
+});
+
+test("structured output checker validates reusable artifact contract", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "structured-output-"));
+  await writeFile(join(outputDir, "design-system.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImages: ["one.jpg"], confidence: "medium", notes: [], conflicts: [] },
+    colors: { accent: { value: "#2d5a3d", confidence: "medium" } },
+    typography: { bodyFont: { value: "Inter", confidence: "low" } },
+    spacing: { baseUnit: { value: 4, confidence: "medium" } },
+    radius: { card: { value: 8, confidence: "medium" } },
+    shadow: { card: { value: "none", confidence: "medium" } }
+  }));
+  await writeFile(join(outputDir, "components.json"), JSON.stringify({
+    ProductCard: {
+      reusable: true,
+      observedIn: ["one.jpg"],
+      instancesObserved: 3,
+      props: ["title", "price", "imageSrc"],
+      variants: [],
+      confidence: "medium"
+    }
+  }));
+  await writeFile(join(outputDir, "page-analysis.json"), JSON.stringify({
+    meta: { sourceImage: "one.jpg", confidence: "medium" },
+    sections: [{ name: "HeroSection", order: 1, layout: "split hero", visibleText: ["Chicori"] }],
+    visibleText: ["Chicori"],
+    approximations: [],
+    unreadableText: []
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/check-structured-output.mjs", outputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.components, 1);
+  assert.equal(report.stats.sections, 1);
+});
+
+test("structured output checker rejects missing repeated component props", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "structured-output-invalid-"));
+  await writeFile(join(outputDir, "design-system.json"), JSON.stringify({
+    meta: {},
+    colors: {},
+    typography: {},
+    spacing: {},
+    radius: {},
+    shadow: {}
+  }));
+  await writeFile(join(outputDir, "components.json"), JSON.stringify({
+    ProductCard: { reusable: true, instancesObserved: 3, props: [] }
+  }));
+  await writeFile(join(outputDir, "page-analysis.json"), JSON.stringify({
+    sections: [],
+    visibleText: []
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/check-structured-output.mjs", outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "missing-repeated-component-props" && issue.target === "ProductCard"));
+});
+
+test("crop assets helper writes cropped screenshot assets when sips is available", async (t) => {
+  if (spawnSync("sips", ["--version"], { encoding: "utf8" }).status !== 0) {
+    t.skip("macOS sips is not available");
+    return;
+  }
+
+  const outputDir = await mkdtemp(join(tmpdir(), "crop-assets-"));
+  const sourcePath = join(outputDir, "source.bmp");
+  const specsPath = join(outputDir, "crops.json");
+  const assetsDir = join(outputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(sourcePath, makeBmp(20, 20));
+  await writeFile(specsPath, JSON.stringify([{ id: "product-main", bbox: { x: 5, y: 5, width: 10, height: 10 } }]));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/crop-assets.mjs", sourcePath, specsPath, assetsDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.assets[0].id, "product-main");
+  const cropped = await readFile(join(assetsDir, "product-main.png"));
+  assert.ok(cropped.length > 0);
 });
 
 test("UI architecture validation rejects undeclared layout components", () => {

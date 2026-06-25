@@ -254,6 +254,7 @@ Before finishing, check:
 - Colors use exact hex values or token variables derived from exact hex values.
 - Repeated components use data arrays.
 - Structured JSON is valid and separates design-system tokens, reusable components, and page-specific analysis.
+- Structured output can be checked with `scripts/check-structured-output.mjs` when available.
 - If an existing design system was provided, updates are additive and conflicts are noted.
 
 ## Step 5 — Report
