@@ -105,6 +105,55 @@ function expectsProducts(pageType) {
   return ["product-detail", "collection", "cart", "checkout", "ecommerce"].includes(pageType);
 }
 
+function buildManualReviewChecklist(pageType) {
+  const common = [
+    "Layout fidelity: section order, major proportions, and repeated regions match the target screenshot.",
+    "Text/data fidelity: visible target-page text is preserved and no design-system source-page facts leak in.",
+    "Crop/asset fidelity: mustCrop images are visually correct, not merely present and referenced.",
+    "Typography/density: heading scale, body size, spacing, and visual rhythm are close to the target.",
+    "Design-system consistency: shared tokens improve brand consistency without overriding target facts.",
+    "Baseline comparison: with-system is better than, or clearly different from, a no-system baseline."
+  ];
+
+  const byType = {
+    collection: [
+      "Collection focus: product grid count, card crops, product names/prices/ratings, filters, and sort controls are faithful.",
+      "Collection focus: product cards share consistent styling without duplicated controls or stray crop slices."
+    ],
+    "product-detail": [
+      "Product-detail focus: gallery, product title, price, options, tabs, CTA hierarchy, and recommendations are faithful.",
+      "Product-detail focus: main product crop and thumbnails preserve the product subject."
+    ],
+    cart: [
+      "Cart focus: line items, quantities, totals, discount/shipping rows, trust badges, and checkout CTAs are faithful."
+    ],
+    checkout: [
+      "Checkout focus: form layout, order summary, totals, payment/shipping sections, and validation states are faithful."
+    ],
+    editorial: [
+      "Editorial focus: hero proportion, story/quote sections, value cards, ingredient cards, and image crops feel close.",
+      "Editorial focus: design-system reuse improves brand continuity without making the page look like a product page."
+    ],
+    marketing: [
+      "Marketing focus: hero hierarchy, CTA styling, feature/testimonial sections, social proof, and repeated cards are faithful."
+    ],
+    contact: [
+      "Contact focus: contact details, forms, map/image regions, office/store cards, and CTA hierarchy are faithful."
+    ],
+    dashboard: [
+      "Dashboard focus: metric cards, tables, charts, navigation, and information density are faithful."
+    ],
+    other: [
+      "Other page focus: identify the primary page pattern and record the most important visual mismatches."
+    ],
+    unknown: [
+      "Unknown pageType: review page-type-specific expectations manually; consider adding meta.pageType to the contract."
+    ]
+  };
+
+  return [...common, ...(byType[pageType] ?? byType.unknown)];
+}
+
 const args = parseArgs(process.argv.slice(2));
 const designSystemPath = args["design-system"];
 const contractPath = args.contract;
@@ -168,13 +217,7 @@ const report = {
     reusedDesignColors: reusedColors.length,
     ...contractStats
   },
-  manualReviewChecklist: [
-    "Does the generated page keep the target screenshot section order?",
-    "Are product names, prices, ratings, filters, newsletter, and footer text faithful?",
-    "Are mustCrop image regions visually correct, not just present?",
-    "Does the output reuse the source design-system style without copying source-page facts?",
-    "Is the result better than a no-design-system baseline?"
-  ]
+  manualReviewChecklist: buildManualReviewChecklist(contractStats.pageType)
 };
 
 console.log(JSON.stringify(report, null, 2));

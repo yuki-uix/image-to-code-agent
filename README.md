@@ -234,6 +234,8 @@ node skills/image-to-code/scripts/evaluate-reuse.mjs \
   --output ./output/page
 ```
 
+For visual quality, use the checklist in `skills/image-to-code/references/visual-eval.md`. The evaluator intentionally does not claim pixel-perfect scoring; it standardizes what a human should inspect: layout, crop quality, density, typography, design-system consistency, and with-system vs no-system comparison.
+
 ## Installation
 
 There are two ways to use this repo.

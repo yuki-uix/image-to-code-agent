@@ -350,6 +350,7 @@ test("reuse evaluator treats missing products as page-type dependent", async () 
   const editorialReport = JSON.parse(editorialResult.stdout);
   assert.equal(editorialReport.stats.pageType, "editorial");
   assert.ok(!editorialReport.issues.some((issue: { code: string }) => issue.code === "no-products-in-contract"));
+  assert.ok(editorialReport.manualReviewChecklist.some((item: string) => item.includes("Editorial focus")));
 
   const collectionContractPath = join(outputDir, "collection-contract.json");
   await writeFile(collectionContractPath, JSON.stringify({
@@ -367,6 +368,7 @@ test("reuse evaluator treats missing products as page-type dependent", async () 
   const collectionReport = JSON.parse(collectionResult.stdout);
   assert.equal(collectionReport.stats.pageType, "collection");
   assert.ok(collectionReport.issues.some((issue: { code: string }) => issue.code === "no-products-in-contract"));
+  assert.ok(collectionReport.manualReviewChecklist.some((item: string) => item.includes("Collection focus")));
 });
 
 test("UI architecture validation rejects undeclared layout components", () => {

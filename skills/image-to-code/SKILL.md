@@ -127,8 +127,10 @@ Use Validate after Extract or Reuse:
 - `scripts/check-structured-output.mjs` validates Extract artifacts.
 - `scripts/validate-page-contract.mjs` validates Reuse contract fidelity.
 - `scripts/evaluate-reuse.mjs` combines contract validation with design-token reuse stats and a manual review checklist.
+- `references/visual-eval.md` defines the human visual review checklist for layout, crops, density, typography, design-system consistency, and baseline comparison.
 
 Validation is cheap compared with generation and should be used after high-token runs.
+Visual review is still required for crop alignment, density, and whether Reuse is genuinely better than a no-system baseline.
 
 ## Agent/stage structure
 
