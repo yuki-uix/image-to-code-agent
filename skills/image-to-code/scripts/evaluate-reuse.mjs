@@ -90,13 +90,19 @@ function collectHexValues(value, output = new Set()) {
 }
 
 function collectContractStats(contract) {
+  const pageType = typeof contract?.meta?.pageType === "string" ? contract.meta.pageType : "unknown";
   return {
+    pageType,
     sections: Array.isArray(contract?.sections) ? contract.sections.length : 0,
     products: Array.isArray(contract?.products) ? contract.products.length : 0,
     filterGroups: Array.isArray(contract?.filterGroups) ? contract.filterGroups.length : 0,
     footerColumns: Array.isArray(contract?.footerColumns) ? contract.footerColumns.length : 0,
     mustCropRegions: Array.isArray(contract?.cropRegions) ? contract.cropRegions.filter((region) => region?.mustCrop === true).length : 0
   };
+}
+
+function expectsProducts(pageType) {
+  return ["product-detail", "collection", "cart", "checkout", "ecommerce"].includes(pageType);
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -140,12 +146,12 @@ if (designColors.length > 0 && reusedColors.length === 0) {
 }
 
 const contractStats = collectContractStats(contract);
-if (contractStats.products === 0) {
+if (contractStats.products === 0 && expectsProducts(contractStats.pageType)) {
   issues.push({
     severity: "warning",
     code: "no-products-in-contract",
     target: "page-contract.products",
-    message: "Contract has no products; ecommerce reuse evaluation may be too weak."
+    message: `Contract has no products for pageType=${contractStats.pageType}; ecommerce reuse evaluation may be too weak.`
   });
 }
 

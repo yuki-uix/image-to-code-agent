@@ -316,6 +316,7 @@ For simple mode with `--design-system`, do not let this comparison change the pa
 When `--quality safe` or `--design-system` is provided, write `page-contract.json` before generating code. Follow `references/page-contract.md`.
 
 The contract must include:
+- `meta.pageType` using the page-contract reference enum, such as `collection`, `product-detail`, `cart`, `editorial`, or `marketing`
 - ordered sections
 - nav/header labels
 - all readable page-specific headings and body text

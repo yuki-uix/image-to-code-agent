@@ -322,6 +322,53 @@ test("reuse evaluator returns a report when contract validation fails", async ()
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "missing-required-text" && issue.target === "Skincare Essentials"));
 });
 
+test("reuse evaluator treats missing products as page-type dependent", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "reuse-eval-page-type-"));
+  const designSystemPath = join(outputDir, "design-system.json");
+  const htmlPath = join(outputDir, "index.html");
+  await writeFile(designSystemPath, JSON.stringify({
+    colors: { accent: { value: "#2d5a3d" } }
+  }));
+  await writeFile(htmlPath, `
+    <style>:root { --accent: #2d5a3d; }</style>
+    <main><h1>Skincare, softened by nature.</h1></main>
+  `);
+
+  const editorialContractPath = join(outputDir, "editorial-contract.json");
+  await writeFile(editorialContractPath, JSON.stringify({
+    meta: { pageType: "editorial" },
+    sections: [{ name: "Hero", order: 1, requiredText: ["Skincare, softened by nature."] }]
+  }));
+
+  const editorialResult = spawnSync(process.execPath, [
+    "skills/image-to-code/scripts/evaluate-reuse.mjs",
+    "--design-system", designSystemPath,
+    "--contract", editorialContractPath,
+    "--output", outputDir
+  ], { encoding: "utf8" });
+  assert.equal(editorialResult.status, 0, editorialResult.stderr || editorialResult.stdout);
+  const editorialReport = JSON.parse(editorialResult.stdout);
+  assert.equal(editorialReport.stats.pageType, "editorial");
+  assert.ok(!editorialReport.issues.some((issue: { code: string }) => issue.code === "no-products-in-contract"));
+
+  const collectionContractPath = join(outputDir, "collection-contract.json");
+  await writeFile(collectionContractPath, JSON.stringify({
+    meta: { pageType: "collection" },
+    sections: [{ name: "Hero", order: 1, requiredText: ["Skincare, softened by nature."] }]
+  }));
+
+  const collectionResult = spawnSync(process.execPath, [
+    "skills/image-to-code/scripts/evaluate-reuse.mjs",
+    "--design-system", designSystemPath,
+    "--contract", collectionContractPath,
+    "--output", outputDir
+  ], { encoding: "utf8" });
+  assert.equal(collectionResult.status, 0, collectionResult.stderr || collectionResult.stdout);
+  const collectionReport = JSON.parse(collectionResult.stdout);
+  assert.equal(collectionReport.stats.pageType, "collection");
+  assert.ok(collectionReport.issues.some((issue: { code: string }) => issue.code === "no-products-in-contract"));
+});
+
 test("UI architecture validation rejects undeclared layout components", () => {
   const report = validateUiArchitecture({
     pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],

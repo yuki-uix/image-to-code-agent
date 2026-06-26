@@ -20,7 +20,8 @@ For simple mode without `--design-system`, a concise working page contract in th
 {
   "meta": {
     "sourceImage": "path/to/current-screenshot.png",
-    "schemaVersion": 1
+    "schemaVersion": 1,
+    "pageType": "collection"
   },
   "sections": [
     {
@@ -103,6 +104,20 @@ Include all readable facts that must not drift:
 - crop region IDs, subject descriptions, asset paths, and whether the region must be cropped
 
 If text is unreadable, omit it or mark it in `unreadableText`; do not invent exact copy.
+
+Set `meta.pageType` so validation can judge the page fairly:
+
+- `product-detail`
+- `collection`
+- `cart`
+- `checkout`
+- `editorial`
+- `marketing`
+- `contact`
+- `dashboard`
+- `other`
+
+Use `collection`, `product-detail`, `cart`, or `checkout` for ecommerce pages where product data is expected. Use `editorial` for brand story, about, article, ingredient, or content-led pages where `products` may be empty.
 
 For ecommerce grids, do not summarize repeated items. Write every visible card into `products`. If a value is visible but small, record the best readable value and add a low confidence note. The generator may not replace product data with inferred alternatives.
 
