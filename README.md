@@ -39,6 +39,32 @@ Use direct model prompting if you only need an informal one-off snippet. Use thi
 
 In short: Generate is the default; Extract/Reuse/Validate are optional quality knobs.
 
+## Project status
+
+Current state: workflow MVP. Generate, Extract, and Validate are usable today; Reuse is promising but still experimental and should be reviewed against a no-design-system baseline.
+
+### Already done
+
+- Project-local `/image-to-code` command with four actions: Generate, Extract, Reuse, and Validate.
+- Default HTML output that opens directly in a browser; React and Vue output contracts for existing projects.
+- Real asset workflow via `--asset-policy crop`, including a deterministic crop helper for screenshot regions.
+- Structured-mode artifacts: `design-system.json`, `components.json`, and `page-analysis.json`.
+- Design-system reuse path with `page-contract.json`, so the target screenshot remains the source of truth.
+- Validation helpers for structured artifacts, page contracts, reuse checks, required text, forbidden text, cropped assets, and design-color reuse.
+- Visual Eval v1 checklist for human review of layout fidelity, crop quality, typography/density, design-system consistency, and baseline comparison.
+- Same-brand VELVETY test series used to compare Generate, Extract, and Reuse behavior across product-detail, collection, and editorial/about pages.
+
+### TODO / next milestones
+
+- Keep Reuse marked as advanced/experimental until it passes more page families and page types.
+- Improve crop precision and add stronger visual crop validation, not just asset existence checks.
+- Add Visual Eval v2: browser-rendered screenshot capture, original-vs-output overlay, and lightweight diff scoring.
+- Strengthen page-contract extraction so generated contracts capture all visible target-page facts before reuse begins.
+- Add runnable validation for React and Vue outputs, beyond framework-output shape checks.
+- Expand same-brand test suites and require with-system vs no-system comparisons for reuse regressions.
+- Reduce token cost by keeping Generate light by default and putting heavier extraction, reuse, and visual checks behind explicit flags.
+- Polish installation and packaging so a new user can run the workflow from any project with minimal setup.
+
 ## Quick start
 
 Start Claude Code from the repo root:
