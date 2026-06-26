@@ -40,7 +40,7 @@ This skill is not a smarter model. It is a repeatable workflow with quality gate
 - `--framework html|react|vue` — default: `html`; ignored in structured mode unless writing an optional preview.
 - `--asset-policy crop|placeholder|none` — default: `crop`.
 - `--out` — file path for html simple mode; output directory for react/vue or structured mode.
-- `--design-system` — existing `design-system.json` to reuse or update.
+- `--design-system` — existing `design-system.json` to reuse as visual guidance or update in structured mode.
 
 Keep the default experience zero-config: one image in, one browser-openable HTML file out.
 
@@ -98,6 +98,31 @@ Success criteria:
 - when an existing design system is provided, merges additively instead of overwriting stable tokens without evidence
 
 Structured mode is for reuse and consistency, not immediate final-page fidelity.
+
+### Existing design-system boundary
+
+When `--design-system` is provided for simple mode, treat it as visual guidance only.
+
+The current screenshot is always the source of truth for:
+- page structure
+- section order
+- layout proportions
+- visible text
+- navigation labels
+- product names, prices, badges, and ratings
+- form labels and placeholders
+- image subjects and crop regions
+- which components appear on the page
+
+The existing design system may influence only:
+- color tokens
+- typography choices
+- spacing scale
+- radius scale
+- shadow/elevation style
+- reusable component styling patterns such as buttons, cards, badges, ratings, tabs, filters, forms, and footer columns
+
+Never copy page sections, product content, nav labels, crop specs, or page-specific component composition from the design-system source page into the new screenshot’s output. If the screenshot conflicts with the existing design system, the screenshot wins and the conflict should be reported as a local override.
 
 ## Step 1 — Parse arguments
 
@@ -201,6 +226,8 @@ Extract the page’s implicit design system:
 
 When using an existing design system, compare the screenshot against it and state whether each token should be reused, extended, or locally overridden.
 
+For simple mode with `--design-system`, do not let this comparison change the page inventory. Reuse tokens and component styling only after the current screenshot’s structure, text inventory, and crop inventory are complete.
+
 ## Step 3A — Simple mode code generation
 
 Generate framework-specific code using `references/framework-output.md`.
@@ -219,6 +246,14 @@ Shared rules:
 - preserve the visual mass of major product/photo placeholders instead of shrinking them into tiny icons
 - match visible brand typography cues, especially for luxury, skincare, editorial, SaaS, food, and playful retail categories
 - report approximations for unavailable imagery, unreadable text, simplified icons, and invented-looking details
+
+If `--design-system` is provided:
+- use it only after the screenshot audit is complete
+- use it to name and stabilize tokens, not to replace the screenshot’s layout
+- keep the current screenshot’s header/nav/footer labels unless they are unreadable
+- keep the current screenshot’s product/card data instead of copying examples from the design system
+- crop assets from the current screenshot only
+- prefer local overrides when current screenshot evidence differs from the design system
 
 Framework expectations:
 - `html` output is zero-config and opens directly in a browser.
@@ -255,7 +290,8 @@ Before finishing, check:
 - Repeated components use data arrays.
 - Structured JSON is valid and separates design-system tokens, reusable components, and page-specific analysis.
 - Structured output can be checked with `scripts/check-structured-output.mjs` when available.
-- If an existing design system was provided, updates are additive and conflicts are noted.
+- If an existing design system was provided in simple mode, the output preserves the current screenshot’s layout, text, and assets.
+- If an existing design system was provided in structured mode, updates are additive and conflicts are noted.
 
 ## Step 5 — Report
 
@@ -272,5 +308,5 @@ Tell the user:
 - This skill does not guarantee pixel-perfect reproduction from one screenshot.
 - It does not require Ollama, qwen, or local models.
 - It does not run npm install or create a full React/Vue project unless the user explicitly asks.
-- It does not extract real image assets from screenshots.
+- It does not guarantee perfect crop alignment for real image assets.
 - It does not replace human review for production UI.

@@ -186,6 +186,16 @@ When `--design-system` is provided in structured mode:
 5. Add the new source image to `meta.sourceImages`.
 6. Keep page-specific details in `page-analysis.json`.
 
+The new screenshot is the source of truth for its own page analysis. Do not copy page sections, visible text, product data, navigation labels, crop regions, or component composition from the existing design system’s source page.
+
+Existing design-system content may be reused only for reusable visual decisions:
+- token naming
+- token values that match the new screenshot
+- component style patterns
+- known variants that visibly recur
+
+If a reusable component pattern recurs but the content differs, keep the new screenshot’s content and props. If the new screenshot uses a different layout, record it as a local page structure rather than forcing it into an older component composition.
+
 Conflict format:
 
 ```json

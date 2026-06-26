@@ -25,6 +25,37 @@ Read this when `/image-to-code` runs in simple mode.
 - Preserve brand typography cues: luxury/skincare/editorial pages often need serif headings, letter-spaced labels, and restrained body text; SaaS/tech pages often need geometric sans; playful consumer pages may need softer rounded sans.
 - Record approximations for unreadable text, unavailable image assets, simplified icons, maps, and decorative illustrations.
 
+## Existing design-system reuse
+
+When `--design-system` is provided, the current screenshot remains the source of truth.
+
+Use the existing design system for:
+- token names and values when they visibly match the current screenshot
+- typography family/classification and scale guidance
+- spacing, radius, border, and shadow rhythm
+- reusable component styling such as Button, ProductCard, Badge, StarRating, TabBar, FilterGroup, NewsletterSignup, and FooterColumn
+
+Do not use the existing design system for:
+- page layout or section order
+- header or nav labels
+- product names, prices, ratings, badges, or descriptions
+- footer links or newsletter copy
+- crop specs, image filenames, or asset regions
+- examples from a previous page
+- deciding whether a component should appear on the current page
+
+If there is a conflict, prefer current screenshot evidence. Example: if the design system has a product detail page with quantity selectors but the current screenshot is a collection grid, generate the collection grid and do not add quantity selectors.
+
+Implementation sequence:
+
+1. Audit the current screenshot completely: sections, text, images, crops, and components.
+2. Build the page structure only from that audit.
+3. Apply matching design-system tokens to stabilize style.
+4. Use local overrides where the current screenshot differs.
+5. Report any major overrides.
+
+Never copy page-specific content from the design-system source image. Reuse style, not memory.
+
 ## Asset policy
 
 Default asset policy is `crop`.
@@ -34,6 +65,8 @@ Default asset policy is `crop`.
 - `none`: omit image assets and avoid visual placeholders unless necessary for layout.
 
 Prefer real cropped assets for ecommerce/product pages. The user expects real images, not icons.
+
+When a design system is provided, crop from the current screenshot only. Do not reuse crop coordinates or asset names from the design-system source page unless the current screenshot independently shows the same region.
 
 When using `crop`, first produce crop specs:
 
