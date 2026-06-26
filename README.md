@@ -205,11 +205,13 @@ The image-to-code skill includes small deterministic helpers:
 skills/image-to-code/scripts/crop-assets.mjs
 skills/image-to-code/scripts/check-structured-output.mjs
 skills/image-to-code/scripts/validate-page-contract.mjs
+skills/image-to-code/scripts/evaluate-reuse.mjs
 ```
 
 - `crop-assets.mjs` crops real image regions from a screenshot into `assets/`.
 - `check-structured-output.mjs` validates the minimum structured-mode JSON contract.
 - `validate-page-contract.mjs` checks that generated code preserves current-screenshot text facts and required cropped assets.
+- `evaluate-reuse.mjs` combines page-contract validation with design-token reuse stats and a manual review checklist.
 
 Validate structured output:
 
@@ -221,6 +223,15 @@ Validate a Reuse output when `page-contract.json` exists:
 
 ```sh
 node skills/image-to-code/scripts/validate-page-contract.mjs ./output/page/page-contract.json ./output/page
+```
+
+Evaluate a Reuse run:
+
+```sh
+node skills/image-to-code/scripts/evaluate-reuse.mjs \
+  --design-system ./output/design-system/design-system.json \
+  --contract ./output/page/page-contract.json \
+  --output ./output/page
 ```
 
 ## Installation

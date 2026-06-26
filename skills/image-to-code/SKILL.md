@@ -126,6 +126,7 @@ Use Validate after Extract or Reuse:
 
 - `scripts/check-structured-output.mjs` validates Extract artifacts.
 - `scripts/validate-page-contract.mjs` validates Reuse contract fidelity.
+- `scripts/evaluate-reuse.mjs` combines contract validation with design-token reuse stats and a manual review checklist.
 
 Validation is cheap compared with generation and should be used after high-token runs.
 
@@ -412,6 +413,7 @@ Before finishing, check:
 - Structured output can be checked with `scripts/check-structured-output.mjs` when available.
 - If an existing design system was provided in simple mode, `page-contract.json` exists and the output preserves the current screenshot’s layout, text, and assets.
 - If `scripts/validate-page-contract.mjs` is available, run it before reporting success for simple mode with `--design-system`.
+- If `scripts/evaluate-reuse.mjs` is available, use it after Reuse runs when the user is comparing design-system value.
 - If an existing design system was provided in structured mode, updates are additive and conflicts are noted.
 
 ## Step 5 — Report

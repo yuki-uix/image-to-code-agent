@@ -246,6 +246,48 @@ test("page contract validator rejects missing must-crop assets", async () => {
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "must-crop-asset-missing" && issue.target === "assets/product-chicori.png"));
 });
 
+test("reuse evaluator combines contract integrity and design token reuse", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "reuse-eval-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const designSystemPath = join(outputDir, "design-system.json");
+  const htmlPath = join(outputDir, "index.html");
+  const assetsDir = join(outputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(assetsDir, "product-chicori.png"), "fake image");
+
+  await writeFile(designSystemPath, JSON.stringify({
+    colors: {
+      accent: { value: "#2d5a3d" },
+      page: { value: "#f7f2ea" }
+    }
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    sections: [{ name: "Collection", order: 1, requiredText: ["Skincare Essentials"] }],
+    products: [{ name: "CHICORI", subtitle: "Protect Serum", price: "$20", originalPrice: "$28", rating: "4.6 (182)", badge: "BEST SELLER" }],
+    cropRegions: [{ id: "product-chicori", assetPath: "assets/product-chicori.png", mustCrop: true, subject: "CHICORI product image" }]
+  }));
+  await writeFile(htmlPath, `
+    <style>:root { --accent: #2d5a3d; }</style>
+    <main>
+      <h1>Skincare Essentials</h1>
+      <article><img src="./assets/product-chicori.png" />CHICORI Protect Serum BEST SELLER $20 $28 4.6 (182)</article>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, [
+    "skills/image-to-code/scripts/evaluate-reuse.mjs",
+    "--design-system", designSystemPath,
+    "--contract", contractPath,
+    "--output", outputDir
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.scores.contractIntegrity, 1);
+  assert.equal(report.scores.designColorReuse, 0.5);
+  assert.equal(report.stats.products, 1);
+});
+
 test("UI architecture validation rejects undeclared layout components", () => {
   const report = validateUiArchitecture({
     pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],
