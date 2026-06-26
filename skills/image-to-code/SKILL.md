@@ -288,13 +288,17 @@ The contract must include:
 - ordered sections
 - nav/header labels
 - all readable page-specific headings and body text
-- repeated product/card data: names, subtitles, prices, original prices, badges, ratings
+- repeated product/card data for every visible card: names, subtitles, prices, original prices, badges, ratings
+- filter groups: headings and all visible option labels
+- newsletter content: heading, supporting text, input placeholder, CTA label
 - form labels/placeholders and CTA labels
 - footer headings and visible links
-- crop regions from the current screenshot
+- crop regions from the current screenshot, including `assetPath` and `mustCrop: true` for real product/hero/card/lifestyle photos
 - focused `forbiddenText` for previous-page facts that must not appear
 
 Do not proceed to code generation until the contract represents the current screenshot rather than the design-system source page.
+
+Do not summarize repeated visual facts. If the screenshot shows 8 product cards, the contract should list 8 products. If it shows 4 footer columns, the contract should list the visible heading and links for all 4 columns. A weak contract will let incorrect output pass validation.
 
 ## Step 3B — Simple mode style plan
 

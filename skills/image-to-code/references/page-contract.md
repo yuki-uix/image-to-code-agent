@@ -39,7 +39,26 @@ For simple mode without `--design-system`, a concise working page contract in th
       "subtitle": "Protect Serum",
       "price": "$20",
       "originalPrice": "$28",
+      "badge": "BEST SELLER",
       "rating": "4.6 (182)"
+    }
+  ],
+  "filterGroups": [
+    {
+      "heading": "CATEGORIES",
+      "options": ["All Products", "Best Sellers", "New Arrivals", "Serums"]
+    }
+  ],
+  "newsletter": {
+    "heading": "Join the VELVETY Circle",
+    "text": "Be the first to know about new arrivals, exclusive offers, and skincare rituals.",
+    "placeholder": "Enter your email",
+    "buttonLabel": "SUBSCRIBE"
+  },
+  "footerColumns": [
+    {
+      "heading": "SHOP",
+      "links": ["All Products", "Best Sellers", "New Arrivals", "Skincare Sets", "Gift Cards"]
     }
   ],
   "requiredText": [
@@ -54,6 +73,8 @@ For simple mode without `--design-system`, a concise working page contract in th
   "cropRegions": [
     {
       "id": "product-chicori",
+      "assetPath": "assets/product-chicori.png",
+      "mustCrop": true,
       "bbox": { "x": 242, "y": 377, "width": 173, "height": 290 },
       "subject": "CHICORI product card image"
     }
@@ -74,12 +95,30 @@ Include all readable facts that must not drift:
 - header/nav labels
 - page title and subtitle
 - section headings
-- product names, subtitles, prices, original prices, badges, and ratings
+- product names, subtitles, prices, original prices, badges, and ratings; for product grids, every visible product card must be represented
+- filter group headings and every visible option label
+- newsletter heading, supporting text, input placeholder, and CTA label
 - form placeholders and button labels
 - footer column headings and visible links
-- crop region IDs and subject descriptions
+- crop region IDs, subject descriptions, asset paths, and whether the region must be cropped
 
 If text is unreadable, omit it or mark it in `unreadableText`; do not invent exact copy.
+
+For ecommerce grids, do not summarize repeated items. Write every visible card into `products`. If a value is visible but small, record the best readable value and add a low confidence note. The generator may not replace product data with inferred alternatives.
+
+## Image facts
+
+For each real photo/product image that should survive as an asset, add a `cropRegions` entry with:
+
+- `id`
+- `assetPath`
+- `mustCrop: true`
+- `bbox`
+- `subject`
+
+Use `mustCrop: true` for product photos, hero photos, card photos, lifestyle photos, and newsletter botanical images when the screenshot shows a real image. Do not replace `mustCrop` regions with CSS illustrations, gradients, emoji, or generic icon shapes.
+
+Use `mustCrop: false` only for abstract decoration where a CSS approximation is acceptable.
 
 ## Forbidden facts
 
@@ -103,10 +142,12 @@ Generation order:
 
 If validation fails, repair the generated code against the contract before reporting success.
 
+If validation passes but visual review shows drift, inspect `page-contract.json` first. A passing validator with wrong output usually means the contract omitted visible facts.
+
 ## Validator command
 
 ```bash
 node ${CLAUDE_SKILL_DIR}/scripts/validate-page-contract.mjs <page-contract.json> <output-file-or-dir>
 ```
 
-The validator checks text-level contract integrity. It does not judge visual fidelity, crop alignment, or layout quality.
+The validator checks text-level contract integrity and whether required cropped assets exist and are referenced. It does not judge visual fidelity, crop alignment, or layout quality.

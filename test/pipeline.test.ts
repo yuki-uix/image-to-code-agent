@@ -156,6 +156,9 @@ test("page contract validator accepts current screenshot facts", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "page-contract-"));
   const contractPath = join(outputDir, "page-contract.json");
   const htmlPath = join(outputDir, "index.html");
+  const assetsDir = join(outputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(assetsDir, "product-chicori.png"), "fake image");
 
   await writeFile(contractPath, JSON.stringify({
     sections: [
@@ -167,6 +170,9 @@ test("page contract validator accepts current screenshot facts", async () => {
       { name: "CHICORI", subtitle: "Protect Serum", price: "$20", originalPrice: "$28", rating: "4.6 (182)" },
       { name: "OPULENT", subtitle: "Rich Moisturizer", price: "$26", originalPrice: "$36", rating: "4.7 (98)" }
     ],
+    cropRegions: [
+      { id: "product-chicori", assetPath: "assets/product-chicori.png", mustCrop: true, subject: "CHICORI product card image" }
+    ],
     forbiddenText: ["Quantity", "Subscribe 30 days"]
   }));
   await writeFile(htmlPath, `
@@ -174,7 +180,7 @@ test("page contract validator accepts current screenshot facts", async () => {
     <main>
       <h1>Skincare Essentials</h1>
       <p>8 products</p>
-      <article>CHICORI Protect Serum $20 $28 4.6 (182)</article>
+      <article><img src="./assets/product-chicori.png" alt="CHICORI" />CHICORI Protect Serum $20 $28 4.6 (182)</article>
       <article>OPULENT Rich Moisturizer $26 $36 4.7 (98)</article>
     </main>
   `);
@@ -183,6 +189,7 @@ test("page contract validator accepts current screenshot facts", async () => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const report = JSON.parse(result.stdout);
   assert.equal(report.valid, true);
+  assert.equal(report.stats.mustCropRegions, 1);
 });
 
 test("page contract validator rejects missing facts and forbidden old-page text", async () => {
@@ -211,6 +218,32 @@ test("page contract validator rejects missing facts and forbidden old-page text"
   assert.equal(report.valid, false);
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "missing-required-text" && issue.target === "PAGES"));
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "forbidden-text-present" && issue.target === "Quantity"));
+});
+
+test("page contract validator rejects missing must-crop assets", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-crop-invalid-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    products: [{ name: "CHICORI", subtitle: "Protect Serum", price: "$20", originalPrice: "$28", rating: "4.6 (182)", badge: "BEST SELLER" }],
+    cropRegions: [
+      { id: "product-chicori", assetPath: "assets/product-chicori.png", mustCrop: true, subject: "CHICORI product image" }
+    ]
+  }));
+  await writeFile(htmlPath, `
+    <article>
+      <div class="leaf-illustration"></div>
+      CHICORI Protect Serum BEST SELLER $20 $28 4.6 (182)
+    </article>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "must-crop-asset-not-referenced" && issue.target === "assets/product-chicori.png"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "must-crop-asset-missing" && issue.target === "assets/product-chicori.png"));
 });
 
 test("UI architecture validation rejects undeclared layout components", () => {

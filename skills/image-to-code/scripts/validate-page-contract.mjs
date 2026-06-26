@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, statSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 function fail(message) {
   console.error(`validate-page-contract: ${message}`);
@@ -63,6 +63,7 @@ function collectContractText(value, required, forbidden) {
       "badge",
       "label",
       "placeholder",
+      "buttonLabel",
       "heading"
     ].includes(key)) {
       if (Array.isArray(item)) {
@@ -74,6 +75,71 @@ function collectContractText(value, required, forbidden) {
     }
 
     if (typeof item === "object") collectContractText(item, required, forbidden);
+  }
+}
+
+function collectProducts(contract) {
+  return Array.isArray(contract?.products) ? contract.products : [];
+}
+
+function collectCropRegions(contract) {
+  return Array.isArray(contract?.cropRegions) ? contract.cropRegions : [];
+}
+
+function validateContractShape(contract, issues) {
+  for (const [index, product] of collectProducts(contract).entries()) {
+    if (!product || typeof product !== "object") {
+      issues.push({
+        severity: "error",
+        code: "invalid-product-contract",
+        target: `products[${index}]`,
+        message: "Product contract entries must be objects."
+      });
+      continue;
+    }
+
+    for (const key of ["name", "price"]) {
+      if (typeof product[key] !== "string" || !product[key].trim()) {
+        issues.push({
+          severity: "error",
+          code: "incomplete-product-contract",
+          target: `products[${index}].${key}`,
+          message: `Product contract is missing required field ${key}.`
+        });
+      }
+    }
+
+    for (const key of ["subtitle", "originalPrice", "rating", "badge"]) {
+      if (!(key in product)) {
+        issues.push({
+          severity: "warning",
+          code: "sparse-product-contract",
+          target: `products[${index}].${key}`,
+          message: `Product contract does not state ${key}; visible ecommerce cards should include it when readable.`
+        });
+      }
+    }
+  }
+
+  for (const [index, region] of collectCropRegions(contract).entries()) {
+    if (!region || typeof region !== "object") {
+      issues.push({
+        severity: "error",
+        code: "invalid-crop-contract",
+        target: `cropRegions[${index}]`,
+        message: "Crop region entries must be objects."
+      });
+      continue;
+    }
+
+    if (region.mustCrop === true && typeof region.assetPath !== "string") {
+      issues.push({
+        severity: "error",
+        code: "missing-must-crop-asset",
+        target: region.id ?? `cropRegions[${index}]`,
+        message: "mustCrop regions must include assetPath so generated code can be checked."
+      });
+    }
   }
 }
 
@@ -113,9 +179,13 @@ try {
 const required = new Set();
 const forbidden = new Set();
 collectContractText(contract, required, forbidden);
+validateContractShape(contract, issues);
 
 const files = await listTextFiles(outputPath);
-const output = normalize((await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n"));
+const rawOutput = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
+const output = normalize(rawOutput);
+const outputForAssets = rawOutput.toLowerCase();
+const outputIsDir = statSync(outputPath).isDirectory();
 
 for (const text of required) {
   if (text.length <= 1) continue;
@@ -141,13 +211,43 @@ for (const text of forbidden) {
   }
 }
 
+for (const region of collectCropRegions(contract)) {
+  if (region?.mustCrop !== true) continue;
+  const assetPath = region.assetPath;
+  if (typeof assetPath !== "string" || !assetPath.trim()) continue;
+
+  const assetName = basename(assetPath);
+  const normalizedAssetPath = assetPath.toLowerCase();
+  const normalizedAssetName = assetName.toLowerCase();
+
+  if (!outputForAssets.includes(normalizedAssetPath) && !outputForAssets.includes(normalizedAssetName)) {
+    issues.push({
+      severity: "error",
+      code: "must-crop-asset-not-referenced",
+      target: assetPath,
+      message: `Output does not reference required cropped asset: ${assetPath}`
+    });
+  }
+
+  if (outputIsDir && !existsSync(join(outputPath, assetPath))) {
+    issues.push({
+      severity: "error",
+      code: "must-crop-asset-missing",
+      target: assetPath,
+      message: `Required cropped asset file is missing: ${assetPath}`
+    });
+  }
+}
+
 const report = {
   valid: !issues.some((issue) => issue.severity === "error"),
   issues,
   stats: {
     filesChecked: files.length,
     requiredText: required.size,
-    forbiddenText: forbidden.size
+    forbiddenText: forbidden.size,
+    products: collectProducts(contract).length,
+    mustCropRegions: collectCropRegions(contract).filter((region) => region?.mustCrop === true).length
   }
 };
 
