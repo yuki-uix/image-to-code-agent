@@ -288,6 +288,40 @@ test("reuse evaluator combines contract integrity and design token reuse", async
   assert.equal(report.stats.products, 1);
 });
 
+test("reuse evaluator returns a report when contract validation fails", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "reuse-eval-invalid-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const designSystemPath = join(outputDir, "design-system.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(designSystemPath, JSON.stringify({
+    colors: { accent: { value: "#2d5a3d" } }
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    requiredText: ["Skincare Essentials"],
+    products: [{ name: "CHICORI", subtitle: "Protect Serum", price: "$20", originalPrice: "$28", rating: "4.6 (182)", badge: "BEST SELLER" }],
+    forbiddenText: ["Quantity"]
+  }));
+  await writeFile(htmlPath, `
+    <main>
+      <h1>Product Name</h1>
+      <button>Quantity</button>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, [
+    "skills/image-to-code/scripts/evaluate-reuse.mjs",
+    "--design-system", designSystemPath,
+    "--contract", contractPath,
+    "--output", outputDir
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 1);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.equal(report.scores.contractIntegrity, 0);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "missing-required-text" && issue.target === "Skincare Essentials"));
+});
+
 test("UI architecture validation rejects undeclared layout components", () => {
   const report = validateUiArchitecture({
     pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],

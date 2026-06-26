@@ -28,6 +28,20 @@ function normalizeText(value) {
   return String(value).toLowerCase();
 }
 
+function parseJsonReport(output) {
+  const text = String(output ?? "").trim();
+  if (!text) throw new Error("empty output");
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1));
+    throw new Error("no JSON object found");
+  }
+}
+
 async function readJson(path) {
   try {
     return JSON.parse(await readFile(path, "utf8"));
@@ -100,12 +114,12 @@ for (const path of [designSystemPath, contractPath, outputPath]) {
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const validatorPath = join(scriptDir, "validate-page-contract.mjs");
-const validatorResult = spawnSync(process.execPath, [validatorPath, contractPath, outputPath], { encoding: "utf8" });
+const validatorResult = spawnSync(process.execPath, [validatorPath, contractPath, outputPath], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
 let contractReport;
 try {
-  contractReport = JSON.parse(validatorResult.stdout);
-} catch {
-  fail(`contract validator did not return JSON: ${validatorResult.stderr || validatorResult.stdout}`);
+  contractReport = parseJsonReport(validatorResult.stdout);
+} catch (error) {
+  fail(`contract validator did not return parseable JSON: ${error instanceof Error ? error.message : String(error)}; raw output: ${validatorResult.stderr || validatorResult.stdout}`);
 }
 
 const designSystem = await readJson(designSystemPath);
