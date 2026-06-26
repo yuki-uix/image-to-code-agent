@@ -152,6 +152,67 @@ test("crop assets helper writes cropped screenshot assets when sips is available
   assert.ok(cropped.length > 0);
 });
 
+test("page contract validator accepts current screenshot facts", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    sections: [
+      { name: "Header", order: 1, requiredText: ["VELVETY", "PAGES", "SHOP", "ABOUT", "LOGIN", "CART (0)"] },
+      { name: "Collection", order: 2, requiredText: ["Skincare Essentials", "8 products"] }
+    ],
+    navigation: { labels: ["PAGES", "SHOP", "ABOUT", "LOGIN", "CART (0)"] },
+    products: [
+      { name: "CHICORI", subtitle: "Protect Serum", price: "$20", originalPrice: "$28", rating: "4.6 (182)" },
+      { name: "OPULENT", subtitle: "Rich Moisturizer", price: "$26", originalPrice: "$36", rating: "4.7 (98)" }
+    ],
+    forbiddenText: ["Quantity", "Subscribe 30 days"]
+  }));
+  await writeFile(htmlPath, `
+    <header>VELVETY PAGES SHOP ABOUT LOGIN CART (0)</header>
+    <main>
+      <h1>Skincare Essentials</h1>
+      <p>8 products</p>
+      <article>CHICORI Protect Serum $20 $28 4.6 (182)</article>
+      <article>OPULENT Rich Moisturizer $26 $36 4.7 (98)</article>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, outputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+});
+
+test("page contract validator rejects missing facts and forbidden old-page text", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-invalid-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    navigation: { labels: ["PAGES", "SHOP", "ABOUT"] },
+    products: [{ name: "CHICORI", price: "$20" }],
+    requiredText: ["Skincare Essentials"],
+    forbiddenText: ["Quantity", "Product Name"]
+  }));
+  await writeFile(htmlPath, `
+    <header>PRICES SHOP ABOUT</header>
+    <main>
+      <h1>Product Name</h1>
+      <button>Quantity</button>
+      <article>CHICORI $20</article>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, htmlPath], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "missing-required-text" && issue.target === "PAGES"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "forbidden-text-present" && issue.target === "Quantity"));
+});
+
 test("UI architecture validation rejects undeclared layout components", () => {
   const report = validateUiArchitecture({
     pages: [{ name: "ShopPage", route: "/shop", rootComponent: "ShopPage" }],

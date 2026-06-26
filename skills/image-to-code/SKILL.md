@@ -59,6 +59,7 @@ Output:
 - `html`: one self-contained `.html` file
 - `react`: React/TypeScript component files, usually `App.tsx` + `tokens.css`
 - `vue`: Vue 3 SFC files, usually `App.vue` + `tokens.css`
+- `page-contract.json` when `--design-system` is provided, to lock current screenshot facts before styling
 
 Success criteria:
 - section order matches the screenshot
@@ -98,6 +99,55 @@ Success criteria:
 - when an existing design system is provided, merges additively instead of overwriting stable tokens without evidence
 
 Structured mode is for reuse and consistency, not immediate final-page fidelity.
+
+## Agent/stage structure
+
+Use these roles as strict stages. They can be implemented inside one Claude Code run, but the responsibilities must not blur.
+
+### Stage 1 — Page Analyst
+
+Input: current screenshot only.
+
+Output: visual audit and, when needed, `page-contract.json`.
+
+Responsibilities:
+- lock current page facts: section order, layout, visible text, nav labels, product data, form labels, footer links, and image/crop regions
+- identify unreadable text instead of inventing it
+- decide which components are visible on the current page
+
+Do not read reusable component examples as instructions to change the current page.
+
+### Stage 2 — Design System Stylist
+
+Input: optional existing `design-system.json` plus the Page Analyst output.
+
+Output: style plan.
+
+Responsibilities:
+- reuse matching colors, typography, spacing, radius, shadows, and component style patterns
+- mark local overrides where the screenshot differs from the design system
+- never add sections, copy, products, nav labels, crops, or components that are not in `page-contract.json`
+
+### Stage 3 — Code Generator
+
+Input: page contract + style plan + framework target.
+
+Output: `html`, `react`, or `vue` implementation and cropped assets.
+
+Responsibilities:
+- generate structure from the page contract
+- apply style from the style plan
+- use current screenshot crop regions only
+- keep repeated content in data arrays
+
+### Stage 4 — Contract Validator
+
+Input: page contract + generated code.
+
+Responsibilities:
+- check that required current-screenshot text is present
+- check that forbidden previous-page or placeholder text is absent
+- repair and rerun validation before reporting success
 
 ### Existing design-system boundary
 
@@ -141,6 +191,8 @@ If the requested framework is not `html`, `react`, or `vue`, ask the user to cho
 For framework-specific output requirements, read `references/framework-output.md` before writing files.
 
 For structured-mode artifact requirements, read `references/structured-output.md` before writing JSON files.
+
+For simple mode with `--design-system`, read `references/page-contract.md` before writing code.
 
 ## Step 2 — Visual audit before writing files
 
@@ -228,7 +280,41 @@ When using an existing design system, compare the screenshot against it and stat
 
 For simple mode with `--design-system`, do not let this comparison change the page inventory. Reuse tokens and component styling only after the current screenshot’s structure, text inventory, and crop inventory are complete.
 
-## Step 3A — Simple mode code generation
+## Step 3A — Simple mode page contract
+
+When `--design-system` is provided, write `page-contract.json` before generating code. Follow `references/page-contract.md`.
+
+The contract must include:
+- ordered sections
+- nav/header labels
+- all readable page-specific headings and body text
+- repeated product/card data: names, subtitles, prices, original prices, badges, ratings
+- form labels/placeholders and CTA labels
+- footer headings and visible links
+- crop regions from the current screenshot
+- focused `forbiddenText` for previous-page facts that must not appear
+
+Do not proceed to code generation until the contract represents the current screenshot rather than the design-system source page.
+
+## Step 3B — Simple mode style plan
+
+When `--design-system` is provided, create a concise style plan after the page contract.
+
+The style plan may reuse:
+- color tokens
+- type scale and font classification
+- spacing/radius/shadow rhythm
+- component visual styling
+
+The style plan may not change:
+- page layout
+- section order
+- visible text
+- product data
+- crop regions
+- whether a component appears
+
+## Step 3C — Simple mode code generation
 
 Generate framework-specific code using `references/framework-output.md`.
 
@@ -248,7 +334,7 @@ Shared rules:
 - report approximations for unavailable imagery, unreadable text, simplified icons, and invented-looking details
 
 If `--design-system` is provided:
-- use it only after the screenshot audit is complete
+- use it only after the screenshot audit and page contract are complete
 - use it to name and stabilize tokens, not to replace the screenshot’s layout
 - keep the current screenshot’s header/nav/footer labels unless they are unreadable
 - keep the current screenshot’s product/card data instead of copying examples from the design system
@@ -261,7 +347,7 @@ Framework expectations:
 - `vue` output is framework code for an existing Vue project, not a full app scaffold unless the user asks.
 - If real image assets are cropped, output a directory containing code plus `assets/` rather than a single bare file unless the user explicitly requests a single-file fallback.
 
-## Step 3B — Structured mode artifacts
+## Step 3D — Structured mode artifacts
 
 Write JSON artifacts instead of final framework code. Follow `references/structured-output.md`.
 
@@ -290,7 +376,8 @@ Before finishing, check:
 - Repeated components use data arrays.
 - Structured JSON is valid and separates design-system tokens, reusable components, and page-specific analysis.
 - Structured output can be checked with `scripts/check-structured-output.mjs` when available.
-- If an existing design system was provided in simple mode, the output preserves the current screenshot’s layout, text, and assets.
+- If an existing design system was provided in simple mode, `page-contract.json` exists and the output preserves the current screenshot’s layout, text, and assets.
+- If `scripts/validate-page-contract.mjs` is available, run it before reporting success for simple mode with `--design-system`.
 - If an existing design system was provided in structured mode, updates are additive and conflicts are noted.
 
 ## Step 5 — Report

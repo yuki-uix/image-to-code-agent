@@ -29,6 +29,8 @@ Read this when `/image-to-code` runs in simple mode.
 
 When `--design-system` is provided, the current screenshot remains the source of truth.
 
+Before generating framework code, create or read `page-contract.json` as described in `page-contract.md`. Generate structure and data from that contract, then apply design-system style guidance.
+
 Use the existing design system for:
 - token names and values when they visibly match the current screenshot
 - typography family/classification and scale guidance
@@ -49,12 +51,16 @@ If there is a conflict, prefer current screenshot evidence. Example: if the desi
 Implementation sequence:
 
 1. Audit the current screenshot completely: sections, text, images, crops, and components.
-2. Build the page structure only from that audit.
-3. Apply matching design-system tokens to stabilize style.
-4. Use local overrides where the current screenshot differs.
-5. Report any major overrides.
+2. Write `page-contract.json` from the audit.
+3. Build the page structure and data only from that contract.
+4. Apply matching design-system tokens to stabilize style.
+5. Use local overrides where the current screenshot differs.
+6. Validate generated code against the contract when the validator is available.
+7. Report any major overrides.
 
 Never copy page-specific content from the design-system source image. Reuse style, not memory.
+
+If `scripts/validate-page-contract.mjs` reports missing required text or forbidden text, repair the generated code before reporting success.
 
 ## Asset policy
 
