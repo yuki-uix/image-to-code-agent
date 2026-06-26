@@ -1,10 +1,25 @@
 # image-to-code
 
-A Claude Code skill for turning UI screenshots into frontend code or reusable design-system artifacts.
+A Claude Code workflow kit for turning UI screenshots into frontend code, reusable design-system artifacts, and optional validation checkpoints.
 
-The default output is a zero-config self-contained HTML preview, but HTML is not the only target. The skill can also generate React or Vue code for an existing project.
+This is not a magic “perfect page from one image” button. It is a practical channel for screenshot-to-frontend work: automate the repetitive parts, keep human review at the important checkpoints, and only spend extra tokens when you need reuse or stronger guardrails.
 
-The skill is not a separate model and does not require Ollama, qwen, npm install, React install, Tailwind install, or a build step for the default HTML output. It uses Claude/Codex vision directly, but wraps direct generation in a disciplined workflow: visual audit, exact colors, real text, component structure, framework-aware output, CSS variables, structured artifacts, and validation.
+The default path is intentionally light: one screenshot in, browser-openable HTML out. React and Vue are also supported for existing projects.
+
+The skill is not a separate model and does not require Ollama, qwen, npm install, React install, Tailwind install, or a build step for the default HTML output.
+
+## What is this tool?
+
+Use it as four actions:
+
+| Action | Input | Output | Token cost | Use when |
+|---|---|---|---|---|
+| Generate | screenshot | `html`, `react`, or `vue` + optional `assets/` | low | you want code quickly |
+| Extract | screenshot | `design-system.json`, `components.json`, `page-analysis.json` | medium/high | you want to reuse a visual system later |
+| Reuse | screenshot + `design-system.json` | code + `page-contract.json` + assets | high | you are building multiple pages in the same design family |
+| Validate | generated artifacts | JSON report | low | you want to catch structural drift or weak artifacts |
+
+Default to Generate. Use Extract only when you need a design system. Use Reuse only for same-brand/same-system pages. Use Validate as a cheap checkpoint after heavier runs.
 
 ## Why not just ask Claude/Codex directly?
 
@@ -12,7 +27,7 @@ Claude Code and Codex can already generate code from an image. This skill is use
 
 ### What value does this skill add?
 
-Direct prompting gives you a one-time result; this skill extracts reusable assets, design tokens, component structure, page analysis, and framework-specific code contracts. It is not trying to be a smarter model — it is a workflow and quality standard around the model. The benefit is more stable repeated output: fewer placeholders, less random structure, and better cross-page consistency.
+Direct prompting gives you a one-time result. This skill gives you a controllable workflow: quick generation by default, optional extraction when you need reusable artifacts, optional contract validation when you need fewer random drifts. It is not trying to be a smarter model — it is a quality channel around the model.
 
 ### How is this different from existing image-to-code tools?
 
@@ -20,9 +35,43 @@ Most image-to-code flows focus on recreating the current screenshot. This skill 
 
 ### When should I use it?
 
-Use direct model prompting if you only need a quick one-off HTML demo. Use this skill when you want to preserve the screenshot’s visual system, reuse it on the next page, generate different framework targets, or build a small design-system trail as you go.
+Use direct model prompting if you only need an informal one-off snippet. Use this skill when you want a repeatable command, real cropped assets, framework-specific outputs, optional design-system extraction, and validation checkpoints.
 
-In short: simple mode gets you usable frontend code now; structured mode turns the screenshot into reusable design-system material.
+In short: Generate is the default; Extract/Reuse/Validate are optional quality knobs.
+
+## Quick start
+
+Start Claude Code from the repo root:
+
+```sh
+cd /private/tmp/image-to-code-agent-remote
+claude
+```
+
+Generate a browser-openable HTML preview:
+
+```txt
+/image-to-code /path/to/screenshot.png --framework html --out ./output/page
+```
+
+Open it:
+
+```sh
+open ./output/page/index.html
+```
+
+Generate React or Vue instead:
+
+```txt
+/image-to-code /path/to/screenshot.png --framework react --out ./output/react-page
+/image-to-code /path/to/screenshot.png --framework vue --out ./output/vue-page
+```
+
+Add a page-contract checkpoint when you want stronger drift control:
+
+```txt
+/image-to-code /path/to/screenshot.png --framework html --quality safe --out ./output/page-safe
+```
 
 ## Skills
 
@@ -32,9 +81,9 @@ This repo currently ships two Claude Code skills.
 
 Main entry point.
 
-#### Simple mode
+#### Generate: screenshot → code
 
-Default mode. Converts a screenshot into frontend code.
+Default action. Converts a screenshot into frontend code with the least process overhead.
 
 ```txt
 /image-to-code path/to/screenshot.jpg
@@ -42,6 +91,7 @@ Default mode. Converts a screenshot into frontend code.
 /image-to-code path/to/screenshot.jpg --framework react --out ./generated-react
 /image-to-code path/to/screenshot.jpg --framework vue --out ./generated-vue
 /image-to-code path/to/screenshot.jpg --framework html --asset-policy crop --out ./generated-html
+/image-to-code path/to/screenshot.jpg --framework html --quality safe --out ./generated-safe-html
 ```
 
 Framework outputs:
@@ -56,7 +106,7 @@ HTML remains the default because it is the lowest-friction preview path. React a
 
 By default, the skill should crop visible image regions from the screenshot into real assets. CSS placeholders are only a fallback when cropping is impossible or `--asset-policy placeholder` is requested.
 
-All frameworks share the same quality bar:
+Generate quality bar:
 
 - section order matches the screenshot
 - readable visible text is copied verbatim
@@ -68,7 +118,9 @@ All frameworks share the same quality bar:
 - no generic placeholder copy
 - explicit approximation notes for unavailable imagery or unreadable text
 
-#### Structured mode
+Generate does not force a full `page-contract.json` by default. That keeps token usage lower.
+
+#### Extract: screenshot → design system
 
 Extracts reusable design-system artifacts from a screenshot.
 
@@ -102,14 +154,17 @@ Structured mode is for building reusable design language across screenshots:
 - visible text inventory
 - approximations and uncertainty notes
 
-#### Using an existing design system
+#### Reuse: screenshot + design system → same-family code
 
-Generate framework code using an existing design system:
+Generate framework code using an existing design system. Use this only for pages that belong to the same brand/design family.
 
 ```txt
+/image-to-code path/to/next-page.jpg --framework html --design-system ./design-system/design-system.json --out ./next-html
 /image-to-code path/to/next-page.jpg --framework react --design-system ./design-system/design-system.json --out ./next-react
 /image-to-code path/to/next-page.jpg --framework vue --design-system ./design-system/design-system.json --out ./next-vue
 ```
+
+Reuse creates or should create `page-contract.json` so the current screenshot remains the source of truth. The existing design system may influence colors, typography, spacing, radius, shadows, and component styling. It must not overwrite current-page facts such as product names, prices, nav labels, crop regions, or section order.
 
 Update an existing design system with another screenshot:
 
@@ -142,17 +197,31 @@ It checks for:
 
 It does not validate React/Vue project code and does not compare the page visually against the original screenshot.
 
-### Helper scripts
+#### Validate: check artifacts
 
 The image-to-code skill includes small deterministic helpers:
 
 ```txt
 skills/image-to-code/scripts/crop-assets.mjs
 skills/image-to-code/scripts/check-structured-output.mjs
+skills/image-to-code/scripts/validate-page-contract.mjs
 ```
 
 - `crop-assets.mjs` crops real image regions from a screenshot into `assets/`.
 - `check-structured-output.mjs` validates the minimum structured-mode JSON contract.
+- `validate-page-contract.mjs` checks that generated code preserves current-screenshot text facts and required cropped assets.
+
+Validate structured output:
+
+```sh
+node skills/image-to-code/scripts/check-structured-output.mjs ./output/design-system
+```
+
+Validate a Reuse output when `page-contract.json` exists:
+
+```sh
+node skills/image-to-code/scripts/validate-page-contract.mjs ./output/page/page-contract.json ./output/page
+```
 
 ## Installation
 
@@ -204,14 +273,14 @@ Convert /path/to/screenshot.jpg with framework react and write output to ./gener
 
 The current MVP scope is:
 
-| Mode | Input | Output | Goal |
+| Action | Input | Output | Goal |
 |---|---|---|---|
-| simple + html | screenshot | HTML + optional assets | zero-config browser preview |
-| simple + react | screenshot | React code + optional assets | copyable React implementation |
-| simple + vue | screenshot | Vue code + optional assets | copyable Vue implementation |
-| structured | screenshot | JSON artifacts | reusable design system |
-| simple + design system | screenshot + `design-system.json` | html/react/vue code | cross-page visual consistency |
-| structured + design system | screenshot + `design-system.json` | updated JSON artifacts | incremental design-system growth |
+| Generate + html | screenshot | HTML + optional assets | zero-config browser preview |
+| Generate + react | screenshot | React code + optional assets | copyable React implementation |
+| Generate + vue | screenshot | Vue code + optional assets | copyable Vue implementation |
+| Extract | screenshot | JSON artifacts | reusable design system |
+| Reuse | screenshot + `design-system.json` | code + `page-contract.json` + assets | same-family visual consistency |
+| Validate | generated artifacts | JSON report | cheap quality checkpoint |
 
 Visual calibration against a browser-rendered screenshot is intentionally not the core MVP. It may become a later advanced workflow, but the current product promise is screenshot-to-frontend-code and screenshot-to-design-system.
 

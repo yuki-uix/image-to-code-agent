@@ -1,35 +1,38 @@
 ---
 name: image-to-code
 description: >
-  A disciplined screenshot-to-frontend-code workflow. In simple mode, converts a
-  UI screenshot into frontend code for html, react, or vue. The default html
-  framework creates a self-contained browser-ready preview using React 18,
-  Tailwind CDN, and Babel; react and vue outputs are framework code intended to
-  be copied into an existing project. In structured mode, extracts reusable
-  design-system artifacts from a screenshot for future screenshots and
-  framework-specific generation. No Ollama, no local model, no build step
-  required for the default html output. Use when the user asks to turn a
-  screenshot into code, recreate a design, generate HTML/React/Vue from an
-  image, extract a design system from a screenshot, or reuse a design system for
-  another page. Trigger phrases include: "image to code", "screenshot to code",
-  "generate React for this", "generate Vue for this", "extract design system",
-  "/image-to-code".
+  A screenshot-to-frontend workflow kit with four actions: Generate code from a
+  screenshot, Extract reusable design-system artifacts, Reuse a design system
+  for same-family pages, and Validate generated artifacts. The default path is
+  lightweight screenshot-to-html/react/vue generation; structured extraction,
+  page contracts, and design-system reuse are opt-in quality knobs. No Ollama,
+  no local model, no build step required for the default html output. Use when
+  the user asks to turn a screenshot into code, recreate a design, generate
+  HTML/React/Vue from an image, extract a design system from a screenshot, reuse
+  a design system for another page, or validate image-to-code artifacts.
+  Trigger phrases include: "image to code", "screenshot to code", "generate
+  React for this", "generate Vue for this", "extract design system", "reuse
+  design system", "/image-to-code".
 ---
 
 # image-to-code
 
-Turn a UI screenshot into either:
+Turn a UI screenshot into a controlled frontend workflow:
 
-1. frontend code for `html`, `react`, or `vue`, or
-2. reusable design-system artifacts for future pages.
+1. Generate: screenshot to `html`, `react`, or `vue`
+2. Extract: screenshot to reusable design-system artifacts
+3. Reuse: screenshot plus `design-system.json` to same-family code
+4. Validate: check structured artifacts or page-contract fidelity
 
-This skill is not a smarter model. It is a repeatable workflow with quality gates: visual audit first, real text, exact color tokens, clear section structure, framework-aware output, centralized design tokens, and optional design-system reuse.
+This skill is not a smarter model. It is a repeatable workflow with quality knobs. Default to the light Generate path; use Extract, Reuse, and Validate only when their extra token cost is justified.
 
 ## Usage
 
 ```txt
 /image-to-code <image-path> [--framework html|react|vue] [--out <output-path-or-dir>]
 /image-to-code <image-path> --mode structured [--out <output-dir>]
+/image-to-code <image-path> --quality safe [--framework html|react|vue] [--out <output-path-or-dir>]
+/image-to-code <image-path> --framework html --design-system <design-system.json> [--out <output-dir>]
 /image-to-code <image-path> --framework react --design-system <design-system.json> [--out <output-dir>]
 /image-to-code <image-path> --framework vue --design-system <design-system.json> [--out <output-dir>]
 /image-to-code <image-path> --mode structured --design-system <design-system.json> [--out <output-dir>]
@@ -38,17 +41,18 @@ This skill is not a smarter model. It is a repeatable workflow with quality gate
 - `<image-path>` — screenshot path; required.
 - `--mode simple|structured` — default: `simple`.
 - `--framework html|react|vue` — default: `html`; ignored in structured mode unless writing an optional preview.
+- `--quality fast|safe` — default: `fast`; `safe` writes `page-contract.json` and runs contract validation when available.
 - `--asset-policy crop|placeholder|none` — default: `crop`.
 - `--out` — file path for html simple mode; output directory for react/vue or structured mode.
 - `--design-system` — existing `design-system.json` to reuse as visual guidance or update in structured mode.
 
 Keep the default experience zero-config: one image in, one browser-openable HTML file out.
 
-## Modes
+## Actions
 
-### Simple mode
+### Generate
 
-Use simple mode when the user wants frontend code now.
+Use Generate when the user wants frontend code now. This is the default and lowest-token path.
 
 Input:
 - one screenshot
@@ -59,7 +63,7 @@ Output:
 - `html`: one self-contained `.html` file
 - `react`: React/TypeScript component files, usually `App.tsx` + `tokens.css`
 - `vue`: Vue 3 SFC files, usually `App.vue` + `tokens.css`
-- `page-contract.json` when `--design-system` is provided, to lock current screenshot facts before styling
+- `page-contract.json` only when `--quality safe` or `--design-system` is provided
 
 Success criteria:
 - section order matches the screenshot
@@ -72,11 +76,11 @@ Success criteria:
 - visual tokens are centralized
 - framework-specific code follows that framework’s conventions
 
-Do not promise pixel-perfect output. The goal is faithful, useful frontend code that can be reviewed, copied, or refined.
+Do not promise pixel-perfect output. The goal is faithful, useful frontend code that can be reviewed, copied, or refined. Do not spend tokens on a full page contract in the default fast path unless the page is unusually fragile or the user asks for stronger validation.
 
-### Structured mode
+### Extract
 
-Use structured mode when the user wants to reuse a visual language across screenshots.
+Use Extract when the user wants to reuse a visual language across screenshots.
 
 Input:
 - one screenshot
@@ -98,7 +102,32 @@ Success criteria:
 - records uncertainty instead of inventing exact CSS values
 - when an existing design system is provided, merges additively instead of overwriting stable tokens without evidence
 
-Structured mode is for reuse and consistency, not immediate final-page fidelity.
+Extract is for reuse and consistency, not immediate final-page fidelity.
+
+### Reuse
+
+Use Reuse when the user provides `--design-system` and wants another page in the same design family.
+
+Input:
+- current screenshot
+- existing `design-system.json`
+- framework choice
+
+Output:
+- framework code
+- current-page assets
+- `page-contract.json`
+
+Reuse is the highest-token path. Only use it when the current screenshot belongs to the same brand/design family as the existing design system. The current screenshot supplies facts; the design system supplies visual guidance.
+
+### Validate
+
+Use Validate after Extract or Reuse:
+
+- `scripts/check-structured-output.mjs` validates Extract artifacts.
+- `scripts/validate-page-contract.mjs` validates Reuse contract fidelity.
+
+Validation is cheap compared with generation and should be used after high-token runs.
 
 ## Agent/stage structure
 
@@ -182,7 +211,8 @@ Identify:
 - framework, defaulting to `html`
 - output path or directory
 - optional existing design-system path
- - asset policy, defaulting to `crop`
+- quality, defaulting to `fast`
+- asset policy, defaulting to `crop`
 
 If the image path is missing, ask for it.
 
@@ -192,7 +222,7 @@ For framework-specific output requirements, read `references/framework-output.md
 
 For structured-mode artifact requirements, read `references/structured-output.md` before writing JSON files.
 
-For simple mode with `--design-system`, read `references/page-contract.md` before writing code.
+For simple mode with `--quality safe` or `--design-system`, read `references/page-contract.md` before writing code.
 
 ## Step 2 — Visual audit before writing files
 
@@ -282,7 +312,7 @@ For simple mode with `--design-system`, do not let this comparison change the pa
 
 ## Step 3A — Simple mode page contract
 
-When `--design-system` is provided, write `page-contract.json` before generating code. Follow `references/page-contract.md`.
+When `--quality safe` or `--design-system` is provided, write `page-contract.json` before generating code. Follow `references/page-contract.md`.
 
 The contract must include:
 - ordered sections
