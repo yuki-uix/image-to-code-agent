@@ -265,6 +265,29 @@ test("design input preflight rejects unsafe or unmanifested asset sets", async (
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unmanifested-asset" && issue.target === "assets/unlisted-leaf.png"));
 });
 
+test("design input preflight rejects text files disguised as raster images", async () => {
+  const inputDir = await mkdtemp(join(tmpdir(), "design-input-fake-images-"));
+  const assetsDir = join(inputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(inputDir, "page-reference.png"), "this is not a png");
+  await writeFile(join(assetsDir, "product-bottle.png"), "this is not a png either");
+  await writeFile(join(inputDir, "input-manifest.json"), JSON.stringify({
+    pageReference: "page-reference.png",
+    assets: [{
+      id: "product-bottle",
+      file: "assets/product-bottle.png",
+      presentation: { background: "opaque", recommendedFit: "contain" }
+    }]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-design-input.mjs", inputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "invalid-image-file" && issue.target === "page-reference.png"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "invalid-image-file" && issue.target === "assets/product-bottle.png"));
+});
+
 test("design package validator accepts materialized reusable assets", async () => {
   const packageDir = await mkdtemp(join(tmpdir(), "design-package-"));
   const assetsDir = join(packageDir, "assets");
