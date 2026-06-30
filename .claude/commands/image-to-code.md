@@ -1,6 +1,6 @@
 ---
-description: Generate frontend code, extract design-system artifacts, reuse a design system, or validate screenshot-to-code outputs.
-argument-hint: <image-path> [--framework html|react|vue] [--mode simple|structured] [--quality fast|safe] [--design-system path] [--out path]
+description: Generate frontend code from screenshots, AI design boards, or clean design bundles.
+argument-hint: <input-path> [--source-type auto|screenshot|design-board|design-bundle] [--package-only] [--design-package path] [--framework html|react|vue] [--mode simple|structured] [--quality fast|safe] [--design-system path] [--out path]
 ---
 
 Use the project skill at `skills/image-to-code/SKILL.md`.
@@ -11,4 +11,4 @@ Forward these arguments exactly:
 $ARGUMENTS
 ```
 
-If no arguments were provided, ask for the screenshot path and desired framework or mode.
+If no arguments were provided, ask for the source image path and desired framework or mode.

@@ -36,7 +36,7 @@ Use this shape:
   "meta": {
     "schemaVersion": 1,
     "sourceImages": ["path/to/source.jpg"],
-    "createdFrom": "screenshot",
+    "createdFrom": "screenshot | design-board",
     "confidence": "low | medium | high",
     "notes": ["Values are visually estimated from screenshot pixels."],
     "conflicts": []

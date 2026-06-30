@@ -2,3 +2,5 @@ node_modules/
 outputs/*
 !outputs/.gitkeep
 .DS_Store
+__pycache__/
+*.pyc

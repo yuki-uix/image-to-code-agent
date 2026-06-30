@@ -86,6 +86,18 @@ function collectCropRegions(contract) {
   return Array.isArray(contract?.cropRegions) ? contract.cropRegions : [];
 }
 
+function collectRegionCoverage(contract) {
+  return Array.isArray(contract?.regionCoverage) ? contract.regionCoverage : [];
+}
+
+function collectAssetComposition(contract) {
+  return Array.isArray(contract?.assetComposition) ? contract.assetComposition : [];
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function validateContractShape(contract, issues) {
   for (const [index, product] of collectProducts(contract).entries()) {
     if (!product || typeof product !== "object") {
@@ -239,6 +251,115 @@ for (const region of collectCropRegions(contract)) {
   }
 }
 
+const coverage = collectRegionCoverage(contract);
+const knownRegionIds = new Set();
+for (const [index, region] of coverage.entries()) {
+  const id = region?.sourceRegionId;
+  if (typeof id !== "string" || !id.trim()) {
+    issues.push({
+      severity: "error",
+      code: "invalid-region-coverage",
+      target: `regionCoverage[${index}]`,
+      message: "Region coverage entries require sourceRegionId."
+    });
+    continue;
+  }
+  knownRegionIds.add(id);
+  const marker = new RegExp(`data-source-region\\s*=\\s*["']${escapeRegExp(id)}["']`, "g");
+  const markerCount = [...rawOutput.matchAll(marker)].length;
+  if (markerCount === 0) {
+    issues.push({ severity: "error", code: "region-marker-missing", target: id, message: `Output is missing data-source-region marker: ${id}` });
+  } else if (markerCount > 1) {
+    issues.push({ severity: "error", code: "region-marker-duplicated", target: id, message: `Output renders the same source region marker ${markerCount} times in source.` });
+  }
+
+  const expectedInstances = Number(region.expectedInstances ?? 1);
+  if (expectedInstances > 1) {
+    const idPattern = escapeRegExp(id);
+    const countPattern = escapeRegExp(expectedInstances);
+    const sameTagForward = new RegExp(`data-source-region\\s*=\\s*["']${idPattern}["'][^>]*data-source-instances\\s*=\\s*["']${countPattern}["']`);
+    const sameTagReverse = new RegExp(`data-source-instances\\s*=\\s*["']${countPattern}["'][^>]*data-source-region\\s*=\\s*["']${idPattern}["']`);
+    if (!sameTagForward.test(rawOutput) && !sameTagReverse.test(rawOutput)) {
+      issues.push({
+        severity: "error",
+        code: "region-instance-marker-missing",
+        target: id,
+        message: `Repeated region ${id} must declare data-source-instances="${expectedInstances}" on the same element.`
+      });
+    }
+  }
+}
+
+for (const match of rawOutput.matchAll(/data-source-region\s*=\s*["']([^"']+)["']/g)) {
+  const id = match[1];
+  if (coverage.length > 0 && !knownRegionIds.has(id)) {
+    issues.push({ severity: "error", code: "unknown-region-marker", target: id, message: `Output contains a source-region marker not declared by the contract: ${id}` });
+  }
+}
+
+const assetComposition = collectAssetComposition(contract);
+const knownCompositionIds = new Set();
+for (const [index, composition] of assetComposition.entries()) {
+  const id = composition?.id;
+  if (typeof id !== "string" || !id.trim()) {
+    issues.push({ severity: "error", code: "invalid-asset-composition", target: `assetComposition[${index}]`, message: "Asset composition entries require an ID." });
+    continue;
+  }
+  knownCompositionIds.add(id);
+  const idPattern = escapeRegExp(id);
+  const marker = new RegExp(`data-asset-composition\\s*=\\s*["']${idPattern}["']`, "g");
+  const markerCount = [...rawOutput.matchAll(marker)].length;
+  if (markerCount === 0) {
+    issues.push({ severity: "error", code: "asset-composition-marker-missing", target: id, message: `Output is missing asset composition marker: ${id}` });
+  } else if (markerCount > 1) {
+    issues.push({ severity: "error", code: "asset-composition-marker-duplicated", target: id, message: `Output contains duplicate asset composition markers: ${id}` });
+  }
+
+  const modePattern = escapeRegExp(composition.mode ?? "");
+  const fitPattern = escapeRegExp(composition.fit ?? "");
+  const attributes = [
+    `data-asset-composition\\s*=\\s*["']${idPattern}["']`,
+    `data-asset-mode\\s*=\\s*["']${modePattern}["']`,
+    `data-asset-fit\\s*=\\s*["']${fitPattern}["']`
+  ];
+  const permutations = [
+    new RegExp(`${attributes[0]}[^>]*${attributes[1]}[^>]*${attributes[2]}`),
+    new RegExp(`${attributes[0]}[^>]*${attributes[2]}[^>]*${attributes[1]}`),
+    new RegExp(`${attributes[1]}[^>]*${attributes[0]}[^>]*${attributes[2]}`),
+    new RegExp(`${attributes[1]}[^>]*${attributes[2]}[^>]*${attributes[0]}`),
+    new RegExp(`${attributes[2]}[^>]*${attributes[0]}[^>]*${attributes[1]}`),
+    new RegExp(`${attributes[2]}[^>]*${attributes[1]}[^>]*${attributes[0]}`)
+  ];
+  if (!permutations.some((pattern) => pattern.test(rawOutput))) {
+    issues.push({ severity: "error", code: "asset-composition-attributes-missing", target: id, message: "Composition marker must declare its mode and fit on the same element." });
+  }
+
+  const references = composition.mode === "layered" ? composition.layers : [composition];
+  for (const reference of Array.isArray(references) ? references : []) {
+    if (typeof reference?.assetPath === "string") {
+      const path = reference.assetPath.toLowerCase();
+      const name = basename(reference.assetPath).toLowerCase();
+      if (!outputForAssets.includes(path) && !outputForAssets.includes(name)) {
+        issues.push({ severity: "error", code: "composition-asset-not-referenced", target: reference.assetPath, message: `Output does not reference composition asset: ${reference.assetPath}` });
+      }
+    }
+    if (composition.mode === "layered" && typeof reference?.assetId === "string") {
+      const layerMarker = new RegExp(`data-asset-layer\\s*=\\s*["']${escapeRegExp(reference.assetId)}["']`, "g");
+      const count = [...rawOutput.matchAll(layerMarker)].length;
+      if (count !== 1) {
+        issues.push({ severity: "error", code: "asset-layer-marker-invalid", target: reference.assetId, message: `Layered assets require exactly one data-asset-layer marker; found ${count}.` });
+      }
+    }
+  }
+}
+
+for (const match of rawOutput.matchAll(/data-asset-composition\s*=\s*["']([^"']+)["']/g)) {
+  const id = match[1];
+  if (assetComposition.length > 0 && !knownCompositionIds.has(id)) {
+    issues.push({ severity: "error", code: "unknown-asset-composition-marker", target: id, message: `Output contains an undeclared asset composition marker: ${id}` });
+  }
+}
+
 const report = {
   valid: !issues.some((issue) => issue.severity === "error"),
   issues,
@@ -247,7 +368,9 @@ const report = {
     requiredText: required.size,
     forbiddenText: forbidden.size,
     products: collectProducts(contract).length,
-    mustCropRegions: collectCropRegions(contract).filter((region) => region?.mustCrop === true).length
+    mustCropRegions: collectCropRegions(contract).filter((region) => region?.mustCrop === true).length,
+    coveredRegions: coverage.length,
+    assetCompositions: assetComposition.length
   }
 };
 
