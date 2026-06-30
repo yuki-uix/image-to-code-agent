@@ -152,6 +152,533 @@ test("crop assets helper writes cropped screenshot assets when sips is available
   assert.ok(cropped.length > 0);
 });
 
+test("visual diff passes identical renders and writes eval artifacts", async (t) => {
+  if (spawnSync("python3", ["-c", "import PIL"], { encoding: "utf8" }).status !== 0) {
+    t.skip("Python Pillow is not available");
+    return;
+  }
+
+  const outputDir = await mkdtemp(join(tmpdir(), "visual-diff-"));
+  const referencePath = join(outputDir, "reference-source.bmp");
+  const actualPath = join(outputDir, "actual-source.bmp");
+  const evalDir = join(outputDir, "eval");
+  const image = makeBmp(40, 60);
+  await writeFile(referencePath, image);
+  await writeFile(actualPath, image);
+
+  const result = spawnSync("python3", [
+    "skills/image-to-code/scripts/visual-diff.py",
+    "--reference", referencePath,
+    "--actual", actualPath,
+    "--out", evalDir
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.verdict, "pass");
+  assert.equal(report.scores.overall, 1);
+  for (const file of ["reference.png", "actual.png", "overlay.png", "diff.png", "visual-eval.json"]) {
+    assert.ok((await readFile(join(evalDir, file))).length > 0, `${file} should be written`);
+  }
+});
+
+test("visual diff rejects materially different renders", async (t) => {
+  if (spawnSync("python3", ["-c", "import PIL"], { encoding: "utf8" }).status !== 0) {
+    t.skip("Python Pillow is not available");
+    return;
+  }
+
+  const outputDir = await mkdtemp(join(tmpdir(), "visual-diff-invalid-"));
+  const referencePath = join(outputDir, "reference-source.bmp");
+  const actualPath = join(outputDir, "actual-source.bmp");
+  const evalDir = join(outputDir, "eval");
+  const reference = makeBmp(40, 60);
+  const actual = Buffer.from(reference);
+  for (let index = 54; index < actual.length; index += 1) actual[index] = 255 - actual[index];
+  await writeFile(referencePath, reference);
+  await writeFile(actualPath, actual);
+
+  const result = spawnSync("python3", [
+    "skills/image-to-code/scripts/visual-diff.py",
+    "--reference", referencePath,
+    "--actual", actualPath,
+    "--out", evalDir
+  ], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.notEqual(report.verdict, "pass");
+  assert.ok(report.worstTiles.length > 0);
+});
+
+test("design input preflight accepts a clean manifested bundle", async () => {
+  const inputDir = await mkdtemp(join(tmpdir(), "design-input-"));
+  const assetsDir = join(inputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(inputDir, "page-reference.png"), makeBmp(800, 600));
+  await writeFile(join(assetsDir, "product-bottle.png"), makeBmp(200, 300));
+  await writeFile(join(inputDir, "input-manifest.json"), JSON.stringify({
+    meta: { schemaVersion: 1 },
+    pageReference: "page-reference.png",
+    assets: [
+      {
+        id: "product-bottle",
+        file: "assets/product-bottle.png",
+        role: "hero-product",
+        presentation: { background: "opaque", recommendedFit: "contain", focalPoint: { x: 0.5, y: 0.5 } }
+      }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-design-input.mjs", inputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.assets, 1);
+  assert.equal(report.stats.manifestProvided, true);
+});
+
+test("design input preflight rejects unsafe or unmanifested asset sets", async () => {
+  const inputDir = await mkdtemp(join(tmpdir(), "design-input-invalid-"));
+  const assetsDir = join(inputDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(inputDir, "page-reference.png"), makeBmp(800, 600));
+  await writeFile(join(assetsDir, "product-bottle.png"), makeBmp(200, 300));
+  await writeFile(join(assetsDir, "unlisted-leaf.png"), makeBmp(180, 240));
+  await writeFile(join(inputDir, "input-manifest.json"), JSON.stringify({
+    meta: { schemaVersion: 1 },
+    pageReference: "page-reference.png",
+    assets: [
+      {
+        id: "product-bottle",
+        file: "../outside.png",
+        presentation: { background: "opaque", recommendedFit: "contain" }
+      }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-design-input.mjs", inputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string }) => issue.code === "missing-manifest-asset-file"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unmanifested-asset" && issue.target === "assets/unlisted-leaf.png"));
+});
+
+test("design package validator accepts materialized reusable assets", async () => {
+  const packageDir = await mkdtemp(join(tmpdir(), "design-package-"));
+  const assetsDir = join(packageDir, "assets");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(join(assetsDir, "hero-botanical.png"), "real asset bytes");
+
+  await writeFile(join(packageDir, "design-source.json"), JSON.stringify({
+    meta: {
+      schemaVersion: 1,
+      sourceType: "design-board",
+      sourceImage: "board.png",
+      canvas: { width: 1200, height: 1600 },
+      confidence: "high"
+    },
+    regions: [
+      {
+        id: "hero-botanical",
+        role: "asset",
+        kind: "photo",
+        bbox: { x: 600, y: 80, width: 480, height: 520 },
+        decision: "extract"
+      },
+      {
+        id: "primary-button",
+        role: "component-reference",
+        kind: "button",
+        bbox: { x: 80, y: 620, width: 180, height: 48 },
+        decision: "encode"
+      }
+    ],
+    pageComposition: { sections: ["Header", "Hero", "Footer"] }
+  }));
+  await writeFile(join(packageDir, "page-facts.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png", sourceRegionId: "page-layout", pageType: "product-detail" },
+    sections: [
+      { name: "Header", order: 1, bbox: { x: 0, y: 0, width: 600, height: 80 }, visibleText: ["VELVETY", "SHOP"] },
+      { name: "ProductHero", order: 2, bbox: { x: 0, y: 80, width: 600, height: 520 }, visibleText: ["CHICORI", "€68.00"] }
+    ],
+    regions: [
+      { id: "header", section: "Header", kind: "group", bbox: { x: 0, y: 0, width: 600, height: 80 }, required: true, expectedInstances: 1 },
+      { id: "product-hero", section: "ProductHero", kind: "group", bbox: { x: 0, y: 80, width: 600, height: 520 }, required: true, expectedInstances: 1 }
+    ],
+    visibleText: ["VELVETY", "SHOP", "CHICORI", "€68.00"],
+    unreadableText: [],
+    inferredText: []
+  }));
+  await writeFile(join(packageDir, "asset-manifest.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png" },
+    assets: [
+      {
+        id: "hero-botanical",
+        role: "hero",
+        kind: "photo",
+        file: "assets/hero-botanical.png",
+        extraction: "crop",
+        sourceRegion: { x: 600, y: 80, width: 480, height: 520 },
+        reusable: true,
+        confidence: "high",
+        presentation: { background: "opaque", recommendedFit: "cover", focalPoint: { x: 0.5, y: 0.5 } }
+      }
+    ]
+  }));
+  await writeFile(join(packageDir, "design-system.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImages: ["board.png"] },
+    colors: { accent: { value: "#2d5a3d" } },
+    typography: { headingFont: { value: "serif" } },
+    spacing: { baseUnit: { value: 4 } },
+    radius: { button: { value: 4 } },
+    shadow: { card: { value: "none" } }
+  }));
+  await writeFile(join(packageDir, "components.json"), JSON.stringify({
+    Button: { reusable: true, instancesObserved: 1, props: ["label", "variant"] }
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-design-package.mjs", packageDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.assets, 1);
+  assert.equal(report.stats.reusableAssets, 1);
+  assert.equal(report.stats.regions, 2);
+});
+
+test("design package validator rejects unmaterialized and unsafe assets", async () => {
+  const packageDir = await mkdtemp(join(tmpdir(), "design-package-invalid-"));
+  await writeFile(join(packageDir, "design-source.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceType: "design-board", sourceImage: "board.png" },
+    regions: [
+      {
+        id: "hero-botanical",
+        role: "asset",
+        kind: "photo",
+        bbox: { x: 10, y: 10, width: 200, height: 300 },
+        decision: "extract"
+      }
+    ]
+  }));
+  await writeFile(join(packageDir, "page-facts.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png", sourceRegionId: "page-layout" },
+    sections: [{ name: "Hero", order: 1, bbox: { x: 0, y: 0, width: 500, height: 500 }, visibleText: ["CHICORI"] }],
+    regions: [{ id: "hero", section: "Hero", kind: "group", bbox: { x: 0, y: 0, width: 500, height: 500 }, required: true, expectedInstances: 1 }],
+    visibleText: ["CHICORI"],
+    unreadableText: [],
+    inferredText: []
+  }));
+  await writeFile(join(packageDir, "asset-manifest.json"), JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png" },
+    assets: [
+      {
+        id: "different-asset",
+        role: "hero",
+        kind: "photo",
+        file: "../outside.png",
+        extraction: "crop",
+        sourceRegion: { x: 10, y: 10, width: 200, height: 300 },
+        reusable: true,
+        presentation: { background: "opaque", recommendedFit: "cover" }
+      }
+    ]
+  }));
+  await writeFile(join(packageDir, "design-system.json"), JSON.stringify({
+    meta: {}, colors: {}, typography: {}, spacing: {}, radius: {}, shadow: {}
+  }));
+  await writeFile(join(packageDir, "components.json"), JSON.stringify({ Button: {} }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-design-package.mjs", packageDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unsafe-asset-path" && issue.target === "different-asset"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unmaterialized-asset-region" && issue.target === "hero-botanical"));
+});
+
+test("fact lock accepts a contract derived only from visible page facts", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "fact-lock-"));
+  const factsPath = join(outputDir, "page-facts.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(factsPath, JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png", sourceRegionId: "page-layout", pageType: "product-detail" },
+    sections: [
+      { name: "Header", order: 1, visibleText: ["VELVETY", "SHOP"] },
+      { name: "RelatedProducts", order: 2, visibleText: ["LUMIÈRE", "€59.00"] },
+      { name: "Footer", order: 3, visibleText: ["HELP", "STORES", "© 2024 VELVETY. All rights reserved."] }
+    ],
+    navigation: { brand: "VELVETY", labels: ["SHOP"] },
+    products: [{ name: "LUMIÈRE", price: "€59.00" }],
+    footerColumns: [{ heading: "HELP", links: ["STORES"] }],
+    visibleText: ["VELVETY", "SHOP", "LUMIÈRE", "€59.00", "HELP", "STORES", "© 2024 VELVETY. All rights reserved."],
+    unreadableText: [],
+    inferredText: []
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png", pageType: "product-detail" },
+    navigation: { brand: "VELVETY", labels: ["SHOP"] },
+    products: [{ name: "LUMIÈRE", price: "€59.00" }],
+    footerColumns: [{ heading: "HELP", links: ["STORES"] }],
+    requiredText: ["© 2024 VELVETY. All rights reserved."]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-fact-lock.mjs", factsPath, contractPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.visibleFacts, 7);
+});
+
+test("fact lock rejects invented footer copy and misread prices", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "fact-lock-invalid-"));
+  const factsPath = join(outputDir, "page-facts.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(factsPath, JSON.stringify({
+    meta: { schemaVersion: 1, sourceImage: "board.png", sourceRegionId: "page-layout" },
+    sections: [{ name: "Page", order: 1, visibleText: ["LUMIÈRE", "€59.00", "HELP", "STORES"] }],
+    products: [{ name: "LUMIÈRE", price: "€59.00" }],
+    footerColumns: [{ heading: "HELP", links: ["STORES"] }],
+    visibleText: ["LUMIÈRE", "€59.00", "HELP", "STORES"],
+    unreadableText: [],
+    inferredText: []
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    products: [{ name: "LUMIÈRE", price: "€56.00" }],
+    footerColumns: [{ heading: "SKIN CARE", links: ["Eye Care", "CONNECT"] }]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-fact-lock.mjs", factsPath, contractPath], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "contract-text-without-source" && issue.target === "€56.00"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "contract-text-without-source" && issue.target === "SKIN CARE"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "source-fact-omitted" && issue.target === "€59.00"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "source-fact-omitted" && issue.target === "HELP"));
+});
+
+test("region coverage accepts complete one-to-one page mappings", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "region-coverage-"));
+  const factsPath = join(outputDir, "page-facts.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(factsPath, JSON.stringify({
+    regions: [
+      { id: "product-hero", section: "ProductHero", kind: "group", bbox: { x: 0, y: 80, width: 600, height: 420 }, required: true, expectedInstances: 1 },
+      { id: "description-texture-image", section: "ProductTabs", kind: "image", bbox: { x: 330, y: 510, width: 250, height: 120 }, required: true, expectedInstances: 1, assetId: "cream-texture" },
+      { id: "related-product-cards", section: "RelatedProducts", kind: "repeated-group", bbox: { x: 20, y: 680, width: 560, height: 220 }, required: true, expectedInstances: 4 }
+    ]
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    regionCoverage: [
+      { sourceRegionId: "product-hero", component: "ProductHero", renderAs: "section", expectedInstances: 1 },
+      { sourceRegionId: "description-texture-image", component: "ProductDescriptionImage", renderAs: "img", assetPath: "assets/cream-texture.png", expectedInstances: 1 },
+      { sourceRegionId: "related-product-cards", component: "ProductCard", renderAs: "repeated-group", expectedInstances: 4 }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-region-coverage.mjs", factsPath, contractPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.requiredRegions, 3);
+  assert.equal(report.stats.coveredRegions, 3);
+});
+
+test("region coverage rejects missing, duplicated, and mismatched regions", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "region-coverage-invalid-"));
+  const factsPath = join(outputDir, "page-facts.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(factsPath, JSON.stringify({
+    regions: [
+      { id: "description-texture-image", section: "ProductTabs", kind: "image", bbox: { x: 330, y: 510, width: 250, height: 120 }, required: true, expectedInstances: 1 },
+      { id: "related-product-cards", section: "RelatedProducts", kind: "repeated-group", bbox: { x: 20, y: 680, width: 560, height: 220 }, required: true, expectedInstances: 4 },
+      { id: "footer-leaf", section: "Footer", kind: "image", bbox: { x: 420, y: 900, width: 160, height: 100 }, required: true, expectedInstances: 1 }
+    ]
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    regionCoverage: [
+      { sourceRegionId: "related-product-cards", component: "ProductCard", renderAs: "repeated-group", expectedInstances: 3 },
+      { sourceRegionId: "related-product-cards", component: "ProductCard", renderAs: "repeated-group", expectedInstances: 4 },
+      { sourceRegionId: "unknown-strip", component: "FeatureStrip", renderAs: "section", expectedInstances: 1 }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-region-coverage.mjs", factsPath, contractPath], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "required-region-omitted" && issue.target === "description-texture-image"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "required-region-omitted" && issue.target === "footer-leaf"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "duplicate-region-coverage" && issue.target === "related-product-cards"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-instance-mismatch" && issue.target === "related-product-cards"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unknown-source-region" && issue.target === "unknown-strip"));
+});
+
+test("layout contract builder derives page and region geometry from facts", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "layout-contract-build-"));
+  const factsPath = join(outputDir, "page-facts.json");
+  const layoutPath = join(outputDir, "layout-contract.json");
+  await writeFile(factsPath, JSON.stringify({
+    meta: { sourceImage: "page-reference.png" },
+    sections: [
+      { name: "Header", order: 1, bbox: { x: 0, y: 0, width: 1014, height: 65 } },
+      { name: "Footer", order: 2, bbox: { x: 0, y: 1230, width: 1014, height: 432 } }
+    ],
+    regions: [
+      { id: "header-navigation", bbox: { x: 0, y: 0, width: 1014, height: 65 }, required: true },
+      { id: "footer-content", bbox: { x: 0, y: 1230, width: 1014, height: 432 }, required: true }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/build-layout-contract.mjs", factsPath, layoutPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const layout = JSON.parse(await readFile(layoutPath, "utf8"));
+  assert.deepEqual(layout.viewport, { width: 1014, height: 1662 });
+  assert.equal(layout.document.height, 1662);
+  assert.equal(layout.regions.length, 2);
+});
+
+test("layout contract validator accepts measured geometry within tolerance", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "layout-contract-valid-"));
+  const layoutPath = join(outputDir, "layout-contract.json");
+  const measurementsPath = join(outputDir, "layout-measurements.json");
+  await writeFile(layoutPath, JSON.stringify({
+    viewport: { width: 1014, height: 1662 },
+    document: { width: 1014, height: 1662, tolerancePx: 84 },
+    tolerances: { positionPx: 20, sizeRatio: 0.08 },
+    regions: [{ sourceRegionId: "related-products", bbox: { x: 15, y: 1000, width: 984, height: 230 }, expectedInstances: 4 }]
+  }));
+  await writeFile(measurementsPath, JSON.stringify({
+    viewport: { width: 1014, height: 1662 },
+    document: { width: 1014, height: 1700 },
+    regions: [{ sourceRegionId: "related-products", bbox: { x: 18, y: 1012, width: 970, height: 240 }, instances: 4 }]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-layout-contract.mjs", layoutPath, measurementsPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.scores.geometryAgreement, 1);
+});
+
+test("layout contract validator rejects document and region drift", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "layout-contract-invalid-"));
+  const layoutPath = join(outputDir, "layout-contract.json");
+  const measurementsPath = join(outputDir, "layout-measurements.json");
+  await writeFile(layoutPath, JSON.stringify({
+    viewport: { width: 1014, height: 1662 },
+    document: { width: 1014, height: 1662, tolerancePx: 84 },
+    tolerances: { positionPx: 20, sizeRatio: 0.08 },
+    regions: [{ sourceRegionId: "related-products", bbox: { x: 15, y: 1000, width: 984, height: 230 }, expectedInstances: 4 }]
+  }));
+  await writeFile(measurementsPath, JSON.stringify({
+    viewport: { width: 1014, height: 1662 },
+    document: { width: 1014, height: 2193 },
+    regions: [{ sourceRegionId: "related-products", bbox: { x: 30, y: 1200, width: 950, height: 480 }, instances: 4 }]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-layout-contract.mjs", layoutPath, measurementsPath], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.ok(report.issues.some((issue: { code: string }) => issue.code === "document-size-drift"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-geometry-drift" && issue.target === "related-products"));
+});
+
+test("asset composition accepts transparent overlays and explicit image fits", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "asset-composition-"));
+  const manifestPath = join(outputDir, "asset-manifest.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(manifestPath, JSON.stringify({
+    assets: [
+      { id: "hero-background", file: "assets/hero-background.jpg", presentation: { background: "full-bleed", recommendedFit: "cover" } },
+      { id: "product-bottle", file: "assets/product-bottle.png", presentation: { background: "transparent", recommendedFit: "contain" } },
+      { id: "grace-photo", file: "assets/grace-photo.jpg", presentation: { background: "opaque", recommendedFit: "cover" } }
+    ]
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    regionCoverage: [
+      { sourceRegionId: "hero-media", renderAs: "media", expectedInstances: 1 },
+      { sourceRegionId: "grace-card-image", renderAs: "image", expectedInstances: 1 }
+    ],
+    assetComposition: [
+      {
+        id: "hero-media",
+        sourceRegionId: "hero-media",
+        mode: "layered",
+        fit: "cover",
+        containerAspectRatio: "4/5",
+        layers: [
+          { assetId: "hero-background", assetPath: "assets/hero-background.jpg", fit: "cover", position: "50% 50%", zIndex: 0 },
+          { assetId: "product-bottle", assetPath: "assets/product-bottle.png", fit: "contain", position: "50% 60%", zIndex: 1 }
+        ]
+      },
+      {
+        id: "grace-card-image",
+        sourceRegionId: "grace-card-image",
+        mode: "single",
+        assetId: "grace-photo",
+        assetPath: "assets/grace-photo.jpg",
+        fit: "cover",
+        position: "50% 50%",
+        containerAspectRatio: "3/4"
+      }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-asset-composition.mjs", manifestPath, contractPath], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.compositions, 2);
+  assert.equal(report.stats.layeredCompositions, 1);
+});
+
+test("asset composition rejects opaque overlays and uncovered image regions", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "asset-composition-invalid-"));
+  const manifestPath = join(outputDir, "asset-manifest.json");
+  const contractPath = join(outputDir, "page-contract.json");
+
+  await writeFile(manifestPath, JSON.stringify({
+    assets: [
+      { id: "hero-background", file: "assets/hero-background.jpg", presentation: { background: "full-bleed", recommendedFit: "cover" } },
+      { id: "product-bottle", file: "assets/product-bottle.png", presentation: { background: "opaque", recommendedFit: "contain" } }
+    ]
+  }));
+  await writeFile(contractPath, JSON.stringify({
+    regionCoverage: [
+      { sourceRegionId: "hero-media", renderAs: "media", expectedInstances: 1 },
+      { sourceRegionId: "description-texture-image", renderAs: "img", expectedInstances: 1 }
+    ],
+    assetComposition: [
+      {
+        id: "hero-media",
+        sourceRegionId: "hero-media",
+        mode: "layered",
+        fit: "cover",
+        containerAspectRatio: "4/5",
+        layers: [
+          { assetId: "hero-background", assetPath: "assets/hero-background.jpg", fit: "cover", zIndex: 0 },
+          { assetId: "product-bottle", assetPath: "assets/product-bottle.png", fit: "contain", zIndex: 1 }
+        ]
+      }
+    ]
+  }));
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-asset-composition.mjs", manifestPath, contractPath], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "opaque-overlay-layer" && issue.target === "product-bottle"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "image-region-without-composition" && issue.target === "description-texture-image"));
+});
+
 test("page contract validator accepts current screenshot facts", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "page-contract-"));
   const contractPath = join(outputDir, "page-contract.json");
@@ -173,15 +700,21 @@ test("page contract validator accepts current screenshot facts", async () => {
     cropRegions: [
       { id: "product-chicori", assetPath: "assets/product-chicori.png", mustCrop: true, subject: "CHICORI product card image" }
     ],
+    regionCoverage: [
+      { sourceRegionId: "header", component: "Header", renderAs: "header", expectedInstances: 1 },
+      { sourceRegionId: "product-grid", component: "ProductCard", renderAs: "repeated-group", expectedInstances: 2 }
+    ],
     forbiddenText: ["Quantity", "Subscribe 30 days"]
   }));
   await writeFile(htmlPath, `
-    <header>VELVETY PAGES SHOP ABOUT LOGIN CART (0)</header>
+    <header data-source-region="header">VELVETY PAGES SHOP ABOUT LOGIN CART (0)</header>
     <main>
       <h1>Skincare Essentials</h1>
       <p>8 products</p>
-      <article><img src="./assets/product-chicori.png" alt="CHICORI" />CHICORI Protect Serum $20 $28 4.6 (182)</article>
-      <article>OPULENT Rich Moisturizer $26 $36 4.7 (98)</article>
+      <div data-source-region="product-grid" data-source-instances="2">
+        <article><img src="./assets/product-chicori.png" alt="CHICORI" />CHICORI Protect Serum $20 $28 4.6 (182)</article>
+        <article>OPULENT Rich Moisturizer $26 $36 4.7 (98)</article>
+      </div>
     </main>
   `);
 
@@ -190,6 +723,7 @@ test("page contract validator accepts current screenshot facts", async () => {
   const report = JSON.parse(result.stdout);
   assert.equal(report.valid, true);
   assert.equal(report.stats.mustCropRegions, 1);
+  assert.equal(report.stats.coveredRegions, 2);
 });
 
 test("page contract validator rejects missing facts and forbidden old-page text", async () => {
@@ -244,6 +778,113 @@ test("page contract validator rejects missing must-crop assets", async () => {
   assert.equal(report.valid, false);
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "must-crop-asset-not-referenced" && issue.target === "assets/product-chicori.png"));
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "must-crop-asset-missing" && issue.target === "assets/product-chicori.png"));
+});
+
+test("page contract validator rejects missing and duplicated source-region markers", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-region-invalid-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    requiredText: ["CHICORI"],
+    regionCoverage: [
+      { sourceRegionId: "product-hero", component: "ProductHero", renderAs: "section", expectedInstances: 1 },
+      { sourceRegionId: "related-product-cards", component: "ProductCard", renderAs: "repeated-group", expectedInstances: 4 },
+      { sourceRegionId: "footer-leaf", component: "FooterLeaf", renderAs: "img", expectedInstances: 1 }
+    ]
+  }));
+  await writeFile(htmlPath, `
+    <main>
+      <section data-source-region="product-hero">CHICORI</section>
+      <aside data-source-region="product-hero">duplicate hero</aside>
+      <div data-source-region="related-product-cards" data-source-instances="3"></div>
+      <div data-source-region="unknown-region"></div>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-marker-duplicated" && issue.target === "product-hero"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-instance-marker-missing" && issue.target === "related-product-cards"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-marker-missing" && issue.target === "footer-leaf"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "unknown-region-marker" && issue.target === "unknown-region"));
+});
+
+test("page contract validator accepts declared asset composition markers", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-composition-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    requiredText: ["CHICORI"],
+    regionCoverage: [{ sourceRegionId: "hero-media", renderAs: "media", expectedInstances: 1 }],
+    assetComposition: [
+      {
+        id: "hero-media",
+        sourceRegionId: "hero-media",
+        mode: "single",
+        assetId: "product-bottle",
+        assetPath: "assets/product-bottle.png",
+        fit: "contain",
+        containerAspectRatio: "4/5"
+      }
+    ]
+  }));
+  await writeFile(htmlPath, `
+    <main>
+      <div data-source-region="hero-media" data-asset-composition="hero-media" data-asset-mode="single" data-asset-fit="contain">
+        <img src="./assets/product-bottle.png" alt="CHICORI" />
+      </div>
+      <h1>CHICORI</h1>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, outputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, true);
+  assert.equal(report.stats.assetCompositions, 1);
+});
+
+test("page contract validator rejects drifted asset composition output", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "page-contract-composition-invalid-"));
+  const contractPath = join(outputDir, "page-contract.json");
+  const htmlPath = join(outputDir, "index.html");
+
+  await writeFile(contractPath, JSON.stringify({
+    requiredText: ["CHICORI"],
+    regionCoverage: [{ sourceRegionId: "hero-media", renderAs: "media", expectedInstances: 1 }],
+    assetComposition: [
+      {
+        id: "hero-media",
+        sourceRegionId: "hero-media",
+        mode: "layered",
+        fit: "cover",
+        containerAspectRatio: "4/5",
+        layers: [
+          { assetId: "hero-background", assetPath: "assets/hero-background.jpg", fit: "cover", zIndex: 0 },
+          { assetId: "product-bottle", assetPath: "assets/product-bottle.png", fit: "contain", zIndex: 1 }
+        ]
+      }
+    ]
+  }));
+  await writeFile(htmlPath, `
+    <main>
+      <div data-source-region="hero-media" data-asset-composition="hero-media" data-asset-mode="layered" data-asset-fit="contain">
+        <img data-asset-layer="hero-background" src="./assets/hero-background.jpg" alt="CHICORI" />
+      </div>
+    </main>
+  `);
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-page-contract.mjs", contractPath, outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "asset-composition-attributes-missing" && issue.target === "hero-media"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "composition-asset-not-referenced" && issue.target === "assets/product-bottle.png"));
+  assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "asset-layer-marker-invalid" && issue.target === "product-bottle"));
 });
 
 test("reuse evaluator combines contract integrity and design token reuse", async () => {

@@ -9,6 +9,15 @@
     "visual:detail": "node src/visual-detail-cli.ts",
     "component:extract": "node src/component-architect-cli.ts",
     "page:generate": "node src/generate-page-cli.ts",
+    "design-package:validate": "node skills/image-to-code/scripts/validate-design-package.mjs",
+    "fact-lock:validate": "node skills/image-to-code/scripts/validate-fact-lock.mjs",
+    "region-coverage:validate": "node skills/image-to-code/scripts/validate-region-coverage.mjs",
+    "asset-composition:validate": "node skills/image-to-code/scripts/validate-asset-composition.mjs",
+    "layout-contract:build": "node skills/image-to-code/scripts/build-layout-contract.mjs",
+    "layout-contract:validate": "node skills/image-to-code/scripts/validate-layout-contract.mjs",
+    "design-input:validate": "node skills/image-to-code/scripts/validate-design-input.mjs",
+    "page:capture": "node skills/image-to-code/scripts/capture-page.mjs",
+    "visual:diff": "python3 skills/image-to-code/scripts/visual-diff.py",
     "test": "node --test test/**/*.test.ts"
   },
   "engines": {
