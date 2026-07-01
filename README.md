@@ -1,27 +1,34 @@
 # image-to-code
 
-A Claude Code workflow kit for turning UI screenshots, AI-generated design boards, or clean design bundles into reusable design-system artifacts and editable frontend code.
+A Claude Code workflow for turning AI-generated design sources into reusable, validated frontend packages—with screenshot-to-HTML as a fast preview path.
 
-This is not a magic “perfect page from one image” button. It is a practical channel from visual design to reusable materials and frontend code: automate the repetitive parts, keep human review at the important checkpoints, and only spend extra tokens when packaging or reuse is justified.
+The primary product path accepts a clean design bundle or an AI-generated design board, preserves its real assets and design language, and composes editable HTML, React, or Vue code. React and Vue outputs materialize reusable component files, props, variants, data, tokens, and manifests instead of flattening the result into one page component.
 
-The default screenshot path remains intentionally light. For production-oriented work, prefer a clean design bundle containing a page reference plus separate assets; flattened design-board cropping is a fallback.
+This is not a new image model or a “pixel-perfect page from one screenshot” promise. It is a controlled channel between design and code: observable intermediate artifacts, deterministic contracts, inexpensive validation, and human review only where visual judgment is still necessary.
 
-The skill is not a separate model and does not require a local model runtime, npm install, React install, Tailwind install, or a build step for the default HTML output.
+For production-oriented work, prefer a clean design bundle containing a page reference plus separate assets. A flattened design board is supported as a packaging fallback, while an ordinary screenshot can still generate a lightweight browser preview.
+
+The workflow does not require Ollama, Qwen, or any other local-model runtime. The default HTML output also requires no npm install, framework install, or build step.
 
 ## What is this tool?
 
-Use it as two input routes and six actions:
+Use it through two routes:
+
+1. **Design package route — primary:** `design bundle / design board → Package → Compose → Validate`
+2. **Screenshot route — fast path:** `screenshot → Generate`, with optional Extract and Reuse for same-family pages
+
+The available actions are:
 
 | Action | Input | Output | Token cost | Use when |
 |---|---|---|---|---|
-| Generate | screenshot | `html`, `react`, or `vue` + optional `assets/` | low | you want code quickly |
-| Package | clean design bundle or AI board | `design-package/` with real assets, tokens, and components | medium/high | the input contains reusable visual materials |
-| Compose | `design-package/` | editable `html`, `react`, or `vue` | medium | you want a page built from approved materials |
+| Package | clean design bundle or AI board | `design-package/` with real assets, tokens, facts, and component contracts | medium/high | you want reusable design materials |
+| Compose | `design-package/` | editable `html`, `react`, or `vue` | medium | you want code built from approved materials |
+| Validate | generated artifacts | JSON reports and visual-eval artifacts | low | you want deterministic quality gates |
+| Generate | screenshot | `html`, `react`, or `vue` + optional `assets/` | low | you need a quick one-page implementation |
 | Extract | screenshot | `design-system.json`, `components.json`, `page-analysis.json` | medium/high | you want to reuse a visual system later |
 | Reuse | screenshot + `design-system.json` | code + `page-contract.json` + assets | high | you are building multiple pages in the same design family |
-| Validate | generated artifacts | JSON report | low | you want to catch structural drift or weak artifacts |
 
-Default ordinary webpage screenshots to Generate. Use Package → Compose with a clean design bundle when available; treat flattened boards as fallback. Use Extract only when a screenshot is your sole design-system source, Reuse only for same-brand pages, and Validate after heavier runs.
+Use Package → Compose → Validate whenever reusable assets or a design system are part of the input. Default ordinary one-off screenshots to Generate. Use Extract only when a screenshot is your sole design-system source, and Reuse only for pages that genuinely belong to the same design family.
 
 ## Why not just ask Claude/Codex directly?
 
@@ -29,25 +36,25 @@ Claude Code and Codex can already generate code from an image. This skill is use
 
 ### What value does this skill add?
 
-Direct prompting gives you a one-time result. This skill gives you a controllable workflow: quick generation by default, optional extraction when you need reusable artifacts, optional contract validation when you need fewer random drifts. It is not trying to be a smarter model — it is a quality channel around the model.
+Direct prompting gives you a one-time result. This workflow preserves real assets, design tokens, component contracts, page facts, and layout geometry between design and code. It is not trying to be a smarter model—it makes the model's work reusable, inspectable, and testable.
 
 ### How is this different from existing image-to-code tools?
 
-Most image-to-code flows focus on recreating the current screenshot. This skill is designed to produce intermediate artifacts that can survive beyond one page: cropped image assets, `design-system.json`, `components.json`, and `page-analysis.json`. Those artifacts can then drive HTML, React, or Vue output for future screenshots.
+Most image-to-code flows focus on recreating the current screenshot. This workflow can first produce a durable `design-package/`, then compose framework code from that controlled source. React and Vue outputs are checked against an executable component contract rather than accepted as a monolithic visual approximation.
 
 ### When should I use it?
 
-Use direct model prompting if you only need an informal one-off snippet. Use this skill when you want a repeatable command, real cropped assets, framework-specific outputs, optional design-system extraction, and validation checkpoints.
+Use direct model prompting if you only need an informal one-off snippet. Use this workflow when you want reusable assets and components, framework-specific delivery, traceable design decisions, and deterministic quality checkpoints.
 
-In short: Generate is the default; Extract/Reuse/Validate are optional quality knobs.
+In short: Package → Compose → Validate is the product path; Generate is the lightweight preview path.
 
 ## Project status
 
-Current state: workflow MVP. Generate, Extract, and Validate are usable today; Reuse remains experimental. The clean design-bundle Package → Compose route has passed one end-to-end product-detail run and is ready for broader page-family testing.
+Current state: validated pipeline MVP. Generate, Package, Compose, Extract, and Validate are usable today. The clean design-bundle route has passed an end-to-end product-detail run, including reusable React/Vue component validation; broader page-family testing and direct cross-page component-library imports remain in progress. Screenshot-based Reuse remains experimental.
 
 ### Already done
 
-- Project-local `/image-to-code` command contract covering Generate, Package, Compose, Extract, Reuse, and Validate.
+- Project-local `/image-to-code` command covering Generate, Package, Compose, Extract, Reuse, and Validate.
 - Default HTML output that opens directly in a browser; React and Vue output contracts for existing projects.
 - Real asset workflow via `--asset-policy crop`, including a deterministic crop helper for screenshot regions.
 - Structured-mode artifacts: `design-system.json`, `components.json`, and `page-analysis.json`.
@@ -63,13 +70,14 @@ Current state: workflow MVP. Generate, Extract, and Validate are usable today; R
 - First-class `design-bundle` directory input and a zero-model preflight validator for page reference, separate assets, optional manifest metadata, file safety, dimensions, and transparency claims.
 - Layout contract derived from observed bboxes, plus DOM geometry capture and deterministic validation for viewport, document height, region position, size, and repeated counts.
 - Executable React/Vue component contract with independent component files, registry mappings, preserved props/variants, and data-driven repeated rendering.
+- Zero local-model dependency: no Ollama, Qwen, provider client, or model-download step remains in the production workflow.
 
 ### TODO / next milestones
 
-- Keep Reuse marked as advanced/experimental until it passes more page families and page types.
+- Add `--component-library` so later React/Vue pages import previously generated component code instead of regenerating it from the same contract.
+- Keep screenshot-based Reuse marked as advanced/experimental until it passes more page families and page types.
 - Improve crop precision and add stronger visual crop validation, not just asset existence checks.
 - Strengthen page-contract extraction so generated contracts capture all visible target-page facts before reuse begins.
-- Add `--component-library` so later React/Vue pages import previously generated component code instead of regenerating it.
 - Add per-stage timing traces to distinguish hosted-model generation latency from local packaging and deterministic validation.
 - Expand same-brand test suites and require with-system vs no-system comparisons for reuse regressions.
 - Reduce token cost by keeping Generate light by default and putting heavier extraction, reuse, and visual checks behind explicit flags.
@@ -465,20 +473,22 @@ Convert /path/to/screenshot.jpg with framework react and write output to ./gener
 
 ## Scope
 
-The current MVP scope is:
+The current validated-pipeline MVP is:
 
 | Action | Input | Output | Goal |
 |---|---|---|---|
-| Generate + html | screenshot | HTML + optional assets | zero-config browser preview |
-| Generate + react | screenshot | React code + optional assets | copyable React implementation |
-| Generate + vue | screenshot | Vue code + optional assets | copyable Vue implementation |
-| Package | AI design board | real assets + manifests + system artifacts | reusable design materials |
-| Compose | design package + optional page composition | HTML/React/Vue | editable page from controlled materials |
+| Package | clean design bundle or AI design board | real assets + facts + manifests + system artifacts | reusable design source |
+| Compose + html | design package + optional page reference | HTML + assets | browser-openable implementation |
+| Compose + react | design package + optional page reference | React components + data + tokens + assets | reusable React delivery |
+| Compose + vue | design package + optional page reference | Vue components + data + tokens + assets | reusable Vue delivery |
+| Validate | generated artifacts and rendered page | JSON reports + layout/visual artifacts | deterministic quality gates |
+| Generate | screenshot | HTML/React/Vue + optional assets | lightweight one-page implementation |
 | Extract | screenshot | JSON artifacts | reusable design system |
 | Reuse | screenshot + `design-system.json` | code + `page-contract.json` + assets | same-family visual consistency |
-| Validate | generated artifacts | JSON report | cheap quality checkpoint |
 
-Visual calibration against a browser-rendered screenshot remains a later workflow. The expanded product promise is now: screenshot-to-code for quick work, and AI design-board-to-design-package-to-page when reusable materials are present.
+Browser capture, layout-contract validation, overlays, and visual diffs are implemented. They provide evidence for review, not a claim of automatic pixel-perfect convergence.
+
+The current component promise is deliberately precise: a single React/Vue output contains reusable, independently materialized components. A later page can reuse the same design package and component contract, but importing the exact previously generated component implementation is not guaranteed until `--component-library` is complete.
 
 ## Development history
 
