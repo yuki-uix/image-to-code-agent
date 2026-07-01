@@ -690,6 +690,31 @@ test("framework component validator rejects monolithic or incomplete output", as
   }
 });
 
+test("framework component validator returns JSON for malformed regex-like component names", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "framework-components-malformed-name-"));
+  await mkdir(join(outputDir, "src/components"), { recursive: true });
+  const registryPath = join(outputDir, "registry.json");
+  const contractPath = join(outputDir, "page-contract.json");
+  const manifestPath = join(outputDir, "component-manifest.json");
+  await writeFile(registryPath, JSON.stringify({ Button: { props: ["label"], variants: [] } }));
+  await writeFile(contractPath, JSON.stringify({ requiredComponents: [{ name: "Bad[Name", sourceComponent: "Button", repeated: false }] }));
+  await writeFile(manifestPath, JSON.stringify({
+    meta: { schemaVersion: 1, framework: "react" },
+    entry: "src/App.tsx",
+    components: [{ name: "Bad[Name", sourceComponent: "Button", file: "src/components/Bad[Name.tsx", reusable: true, props: ["label"], variants: [] }]
+  }));
+  await writeFile(join(outputDir, "src/components/Bad[Name.tsx"), "export function BadName({ label }: { label: string }) { return <button>{label}</button>; }");
+  await writeFile(join(outputDir, "src/App.tsx"), "export default function App() { return <main />; }");
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-framework-components.mjs", "react", registryPath, contractPath, manifestPath, outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.signal, null, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.valid, false);
+  assert.ok(report.issues.some((issue: { code: string }) => issue.code === "invalid-component-name"));
+  assert.ok(report.issues.some((issue: { code: string }) => issue.code === "invalid-required-component"));
+});
+
 test("asset composition accepts transparent overlays and explicit image fits", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "asset-composition-"));
   const manifestPath = join(outputDir, "asset-manifest.json");

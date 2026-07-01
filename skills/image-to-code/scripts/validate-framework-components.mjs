@@ -41,6 +41,14 @@ function addIssue(issues, code, target, message) {
   issues.push({ severity: "error", code, target, message });
 }
 
+function validComponentName(value) {
+  return typeof value === "string" && /^[A-Z][A-Za-z0-9]*$/.test(value);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 const [, , framework, registryPath, contractPath, manifestPath, outputArg] = process.argv;
 if (!["react", "vue"].includes(framework) || !registryPath || !contractPath || !manifestPath || !outputArg) {
   fail("usage: node validate-framework-components.mjs <react|vue> <components.json> <page-contract.json> <component-manifest.json> <output-dir>");
@@ -79,6 +87,10 @@ for (const [index, component] of declared.entries()) {
     addIssue(issues, "invalid-component-entry", target, "Manifest components require name and sourceComponent.");
     continue;
   }
+  if (!validComponentName(component.name) || !validComponentName(component.sourceComponent)) {
+    addIssue(issues, "invalid-component-name", target, "Component names must be PascalCase identifiers without regex metacharacters.");
+    continue;
+  }
   const entries = declaredBySource.get(component.sourceComponent) ?? [];
   entries.push(component);
   declaredBySource.set(component.sourceComponent, entries);
@@ -92,7 +104,7 @@ for (const [index, item] of required.entries()) {
   const sourceComponent = typeof item === "string" ? item : item?.sourceComponent;
   const outputName = typeof item === "string" ? item : item?.name;
   const target = sourceComponent ?? `page-contract.requiredComponents[${index}]`;
-  if (typeof sourceComponent !== "string" || typeof outputName !== "string" || !isRecord(registry?.[sourceComponent])) {
+  if (!validComponentName(sourceComponent) || !validComponentName(outputName) || !isRecord(registry?.[sourceComponent])) {
     addIssue(issues, "invalid-required-component", target, "Required components must reference a registry component and output name.");
     continue;
   }
@@ -138,13 +150,14 @@ for (const [index, item] of required.entries()) {
     }
   }
   const consumerSources = [...sourceByPath.entries()].filter(([path]) => path !== resolve(file)).map(([, source]) => source);
-  const tagPattern = new RegExp(`<${component.name}(?:\\s|/|>)`);
+  const escapedName = escapeRegExp(component.name);
+  const tagPattern = new RegExp(`<${escapedName}(?:\\s|/|>)`);
   const consumers = consumerSources.filter((source) => tagPattern.test(source));
   if (consumers.length === 0) {
     addIssue(issues, "component-not-rendered", sourceComponent, "Required component must be imported and rendered outside its own file.");
   }
   const fileStem = basename(file, extname(file));
-  const importPattern = new RegExp(`import[\\s\\S]*?\\b${component.name}\\b[\\s\\S]*?from\\s*["'][^"']*${fileStem}(?:\\.${framework === "react" ? "tsx" : "vue"})?["']`);
+  const importPattern = new RegExp(`import[\\s\\S]*?\\b${escapedName}\\b[\\s\\S]*?from\\s*["'][^"']*${escapeRegExp(fileStem)}(?:\\.${framework === "react" ? "tsx" : "vue"})?["']`);
   if (!consumers.some((source) => importPattern.test(source))) {
     addIssue(issues, "component-not-imported", sourceComponent, "Consumer must import the declared reusable component file.");
   }
