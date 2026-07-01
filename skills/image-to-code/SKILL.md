@@ -6,7 +6,7 @@ description: >
   specimens, and design-token cues; the skill materializes them as a reusable
   design package before generating the page. It also supports lightweight direct
   screenshot generation, structured design-system extraction, same-family reuse,
-  and artifact validation. No Ollama or local model is required. Use when the
+  and artifact validation. No separate local model runtime is required. Use when the
   user asks to turn a screenshot or Codex-generated design image into frontend
   code, extract real design assets, build a design system, reuse a design package,
   generate HTML/React/Vue from an image, or validate image-to-code artifacts.
@@ -491,7 +491,7 @@ Tell the user:
 ## Non-goals
 
 - This skill does not guarantee pixel-perfect reproduction from one screenshot.
-- It does not require Ollama, qwen, or local models.
+- It does not require a separate local model runtime.
 - It does not run npm install or create a full React/Vue project unless the user explicitly asks.
 - It does not guarantee perfect crop alignment for real image assets.
 - It does not turn editable text or UI controls into bitmap assets merely because they appear on a design board.

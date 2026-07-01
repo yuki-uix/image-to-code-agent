@@ -5,10 +5,6 @@
   "type": "module",
   "scripts": {
     "demo": "node src/cli.ts --image evaluation/landing-pages/simple-search/screenshot.svg --responses evaluation/landing-pages/simple-search/model-responses.json --out outputs/demo",
-    "visual:analyze": "node src/visual-analyst-cli.ts",
-    "visual:detail": "node src/visual-detail-cli.ts",
-    "component:extract": "node src/component-architect-cli.ts",
-    "page:generate": "node src/generate-page-cli.ts",
     "design-package:validate": "node skills/image-to-code/scripts/validate-design-package.mjs",
     "fact-lock:validate": "node skills/image-to-code/scripts/validate-fact-lock.mjs",
     "region-coverage:validate": "node skills/image-to-code/scripts/validate-region-coverage.mjs",

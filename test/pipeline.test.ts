@@ -12,7 +12,6 @@ import { defaultProjectContract, type ComponentRegistry, type VisualAnalysis } f
 import { CodeGenerator } from "../src/agents/code-generator.ts";
 import type { ModelClient, ModelRequest } from "../src/model/model-client.ts";
 import { detectImageMimeType, detectImageSize } from "../src/image-size.ts";
-import { OllamaInvalidJsonError } from "../src/model/ollama-model-client.ts";
 import { looksLikeComponentRegistrySchemaEcho } from "../src/validation/component-registry-guards.ts";
 import { normalizeComponentRegistry } from "../src/validation/component-registry-normalizer.ts";
 import { repairComponentRegistryCoverage } from "../src/validation/component-registry-repair.ts";
@@ -2233,12 +2232,6 @@ test("image size detection falls back to file signature over extension", () => {
   ]);
   assert.deepEqual(detectImageSize(bytes, ".png"), { width: 600, height: 300 });
   assert.equal(detectImageMimeType(bytes, "fake.png"), "image/jpeg");
-});
-
-test("invalid json error retains raw model output", () => {
-  const error = new OllamaInvalidJsonError("bad json", "{\"broken\":");
-  assert.equal(error.rawText, "{\"broken\":");
-  assert.equal(error.name, "OllamaInvalidJsonError");
 });
 
 test("visual analysis instructions differ between full and coarse modes", () => {

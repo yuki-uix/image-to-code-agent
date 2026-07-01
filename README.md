@@ -6,7 +6,7 @@ This is not a magic “perfect page from one image” button. It is a practical 
 
 The default screenshot path remains intentionally light. For production-oriented work, prefer a clean design bundle containing a page reference plus separate assets; flattened design-board cropping is a fallback.
 
-The skill is not a separate model and does not require Ollama, qwen, npm install, React install, Tailwind install, or a build step for the default HTML output.
+The skill is not a separate model and does not require a local model runtime, npm install, React install, Tailwind install, or a build step for the default HTML output.
 
 ## What is this tool?
 
@@ -69,7 +69,8 @@ Current state: workflow MVP. Generate, Extract, and Validate are usable today; R
 - Keep Reuse marked as advanced/experimental until it passes more page families and page types.
 - Improve crop precision and add stronger visual crop validation, not just asset existence checks.
 - Strengthen page-contract extraction so generated contracts capture all visible target-page facts before reuse begins.
-- Add runnable validation for React and Vue outputs, beyond framework-output shape checks.
+- Add `--component-library` so later React/Vue pages import previously generated component code instead of regenerating it.
+- Add per-stage timing traces to distinguish hosted-model generation latency from local packaging and deterministic validation.
 - Expand same-brand test suites and require with-system vs no-system comparisons for reuse regressions.
 - Reduce token cost by keeping Generate light by default and putting heavier extraction, reuse, and visual checks behind explicit flags.
 - Polish installation and packaging so a new user can run the workflow from any project with minimal setup.
@@ -481,12 +482,4 @@ Visual calibration against a browser-rendered screenshot remains a later workflo
 
 ## Development history
 
-The `src/` directory contains an earlier multi-agent pipeline:
-
-```txt
-Visual Analyst → Component Architect → UI Architect → Code Generator
-```
-
-That pipeline uses local model tooling and was useful for understanding image-to-code failure modes: missing text, over-merged components, placeholder generation, invalid JSX, and weak layout hierarchy.
-
-The production-facing deliverable is the `skills/` directory. The pipeline remains as reference and experimentation infrastructure.
+The `src/` directory retains framework-level contracts, normalization, repair, validation, and replay-test infrastructure from the earlier multi-agent experiments. The production-facing deliverable is the `skills/` directory; no local-model runtime or provider-specific CLI remains in the repository.
