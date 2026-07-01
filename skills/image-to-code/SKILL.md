@@ -48,7 +48,7 @@ This skill is not a smarter model. It is a repeatable workflow with quality knob
 - `--mode simple|structured` — default: `simple`.
 - `--framework html|react|vue` — default: `html`; ignored in structured mode unless writing an optional preview.
 - `--quality fast|safe` — default: `fast`; `safe` writes `page-contract.json` and runs contract validation when available.
-- `--asset-policy crop|placeholder|none` — default: `crop`.
+- `--asset-policy generate|crop|placeholder|none` — default: `generate`. `generate` calls `scripts/generate-assets.mjs`, which asks the Codex-managed imagegen channel for a fresh, license-clean image sized to each asset region — the right default when you don't own the source screenshot's exact pixels (the common case: the input is someone else's reference image, not your own asset library). Use `crop` only when you do own the source image and a clean, unobstructed region exists to lift verbatim (`scripts/crop-assets.mjs`); `placeholder`/`none` skip real assets entirely.
 - `--out` — file path for html simple mode; output directory for react/vue or structured mode.
 - `--design-system` — existing `design-system.json` to reuse as visual guidance or update in structured mode.
 
@@ -175,6 +175,7 @@ Responsibilities:
 - identify unreadable text instead of inventing it
 - decide which components are visible on the current page
 - keep `inferredText` empty and record unreadable text instead of borrowing component defaults
+- ground the audit with a sub-agent-dispatched `codex exec` grounding pass before relying on freehand visual judgment — see Step 2
 
 Do not read reusable component examples as instructions to change the current page.
 
@@ -246,7 +247,7 @@ Identify:
 - output path or directory
 - optional existing design-system path
 - quality, defaulting to `fast`
-- asset policy, defaulting to `crop`
+- asset policy, defaulting to `generate`
 
 If the image path is missing, ask for it.
 
@@ -272,7 +273,27 @@ Read `references/layout-contract.md` for safe page generation and geometry valid
 
 For design-board input, replace this screenshot audit with the source decomposition defined in `references/design-source.md`. Explicitly separate page layout, extractable assets, component references, token references, and ignored annotations.
 
-Read the image and produce a concise working audit before generating code or JSON. The audit should cover:
+Read the image and produce a concise working audit before generating code or JSON. Before working through the six inventories below, ground the audit in structured data rather than starting from freehand visual judgment alone:
+
+Dispatch a sub agent to run, using `--output-schema` for real structural enforcement (verified working — do not drop it):
+
+```sh
+codex exec -i <screenshot> -m gpt-5.5 --output-schema ${CLAUDE_SKILL_DIR}/../../agents/visual-analyst/schema.strict.json \
+  -s read-only --skip-git-repo-check -o <scratch>/layout.raw.json -c model_reasoning_effort="xhigh" < /dev/null \
+  "$(cat ${CLAUDE_SKILL_DIR}/../../agents/visual-analyst/prompt.md)"
+```
+
+`agents/` lives at the repository root, one level above this skill's own directory — resolve both paths via `${CLAUDE_SKILL_DIR}/../../agents/...` (as above) rather than a bare relative path, which only resolves correctly if the current working directory happens to already be the repo root. If `${CLAUDE_SKILL_DIR}` isn't set in your environment, resolve `agents/visual-analyst/` relative to this repository's root instead of the shell's current directory.
+
+Use `agents/visual-analyst/schema.strict.json`, not `agents/visual-analyst/schema.json` — the latter has bare `{"type":"object"}` fields with no `additionalProperties:false`, which OpenAI's strict `--output-schema` mode rejects outright (`invalid_json_schema`) before the model ever runs; confirmed by hand. `schema.strict.json` fixes this by making every object field fully closed and required (nullable unions express optionality), and — since strict mode cannot express an arbitrary-keyed dictionary — encodes `hierarchy.children` as an array of `{id, childIds}` pairs instead of a `{parentId: [childIds]}` map. **Immediately after the sub agent gets the response, before treating it as `layout.json`: convert `hierarchy.children` from that array back into a plain `{id: [childIds]}` object** (a few lines — build an object, one key per array entry), then write that converted form to `<scratch>/layout.json`. Everything downstream expects the plain-object form; only the wire format between here and codex uses the array. `schema.strict.json` also omits `visualTokens` and `elements[].visual` (open-ended dictionaries, not expressible in strict mode, and not needed here — the six inventories below get color/token judgments from your own reading, not from this call).
+
+**Do not trust the response's self-reported `source.width`/`source.height`** — confirmed by hand that the model can misreport these (e.g. claiming 1600×900 for an actual 1440×900 image) while every individual element's `bbox` is still correctly expressed in the true frame. Always overwrite `source` with the rasterized image's actual dimensions (`sips -g pixelWidth -g pixelHeight`, or equivalent) before writing `layout.json`; never propagate the model's self-reported canvas size.
+
+Have the sub agent report back only the converted `layout.json` content (`regions`, `elements` with `bbox`/`kind`/`text`, `layoutRelations`) — not codex's raw process output. Running this through a sub agent, rather than shelling out directly, keeps codex's verbose output out of this session's context and keeps each call cleanly isolated. Expect the call itself to take on the order of a minute or more at `xhigh` effort — most of that is Codex CLI's own local startup overhead plus reasoning time, not a sign anything is stuck.
+
+Use the sub agent's `elements[]`/`regions[]`/`layoutRelations` as the backbone for the six inventories below — it gives denser, more consistently-aligned element coverage than eyeballing the image alone. Still read the image directly yourself for anything the structured pass leaves ambiguous or out of scope: exact color hex values, subjective layout-type calls (split hero vs. sidebar + content), and design-token scale judgments — the sub agent grounds positions, text, and counts; it does not make stylistic judgment calls.
+
+If `codex` is not available in this environment, fall back to reading the image directly for all six inventories.
 
 ### Color palette
 
@@ -408,7 +429,8 @@ Generate framework-specific code using `references/framework-output.md`.
 Shared rules:
 - keep visible text real; never use placeholders like `Lorem ipsum`, `Service 1`, `Card Title`, `Product Name`, or `Description goes here`
 - do not use emoji as product/photo placeholders
-- crop visible image regions into `assets/` whenever `--asset-policy crop` is used and cropping is feasible
+- materialize each required image region into `assets/`: default (`--asset-policy generate`) is `scripts/generate-assets.mjs` (Codex-managed imagegen, one call per region, sized to its bbox); use `scripts/crop-assets.mjs` only under explicit `--asset-policy crop`
+- classify each visual element as a code icon vs. an image asset using `references/icon-system.md` before deciding how to render or source it
 - use exact colors or token variables
 - centralize tokens in `:root`, `tokens.css`, or framework-appropriate CSS
 - use data arrays for repeated cards, products, nav items, testimonials, services, etc.

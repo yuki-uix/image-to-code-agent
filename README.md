@@ -56,7 +56,9 @@ Current state: validated pipeline MVP. Generate, Package, Compose, Extract, and 
 
 - Project-local `/image-to-code` command covering Generate, Package, Compose, Extract, Reuse, and Validate.
 - Default HTML output that opens directly in a browser; React and Vue output contracts for existing projects.
-- Real asset workflow via `--asset-policy crop`, including a deterministic crop helper for screenshot regions.
+- Real asset workflow: `--asset-policy generate` (default) asks the Codex-managed imagegen channel for a fresh image per region — the right default when the screenshot isn't your own asset library; `--asset-policy crop` remains available with its deterministic crop helper for when you do own the source pixels.
+- Visual Analyst grounding runs via a dispatched sub agent shelling out to `codex exec -m gpt-5.5` against this repo's existing `agents/visual-analyst/schema.json` — keeps the model's raw output out of the orchestrating session's context, and gives denser/more consistent element coverage than an ad hoc look at the image.
+- Fidelity loop (`scripts/fidelity-loop.mjs`) gets a dual-critique Reference Review tier: one pass from a Codex sub agent, one pass from the orchestrating agent's own reading of the comparison image, shown side by side rather than merged into a single score.
 - Structured-mode artifacts: `design-system.json`, `components.json`, and `page-analysis.json`.
 - Design-system reuse path with `page-contract.json`, so the target screenshot remains the source of truth.
 - Validation helpers for structured artifacts, page contracts, reuse checks, required text, forbidden text, cropped assets, and design-color reuse.
@@ -83,7 +85,8 @@ Current state: validated pipeline MVP. Generate, Package, Compose, Extract, and 
 - Reduce token cost by keeping Generate light by default and putting heavier extraction, reuse, and visual checks behind explicit flags.
 - Polish installation and packaging so a new user can run the workflow from any project with minimal setup.
 - Forward-test the clean design-bundle route across collection, editorial, and responsive page references.
-- Add mask/background-removal support for assets that cannot be cleanly represented by rectangular crops.
+- Add mask/background-removal support for assets that cannot be cleanly represented by rectangular crops. Partially addressed by defaulting to `generate`: a generated asset isn't bound to the source screenshot's rectangular pixels at all, so occluded/missing/wrong-aspect regions no longer need a crop workaround — but true transparent-background matting for generated output is still a separate, unaddressed need.
+- The Codex-vision / Sonnet-reasoning `ModelClient` split (a portable TypeScript client usable outside Claude Code entirely) is deferred/optional — today's grounding and critique improvements assume the skill runs inside a Claude Code session that can dispatch sub agents and shell out to `codex exec` directly; build the standalone client only if a non-Claude-Code runtime becomes a real requirement.
 
 ## Quick start
 
@@ -184,6 +187,7 @@ Default action. Converts a screenshot into frontend code with the least process 
 /image-to-code path/to/screenshot.jpg --framework html --out output.html
 /image-to-code path/to/screenshot.jpg --framework react --out ./generated-react
 /image-to-code path/to/screenshot.jpg --framework vue --out ./generated-vue
+/image-to-code path/to/screenshot.jpg --framework html --asset-policy generate --out ./generated-html
 /image-to-code path/to/screenshot.jpg --framework html --asset-policy crop --out ./generated-html
 /image-to-code path/to/screenshot.jpg --framework html --quality safe --out ./generated-safe-html
 ```
@@ -198,7 +202,7 @@ Framework outputs:
 
 HTML remains the default because it is the lowest-friction preview path. Design-package React and Vue outputs must materialize reusable registered components, but are not full project scaffolds unless explicitly requested.
 
-By default, the skill should crop visible image regions from the screenshot into real assets. CSS placeholders are only a fallback when cropping is impossible or `--asset-policy placeholder` is requested.
+By default, the skill generates a fresh, license-clean image per required region via the Codex-managed imagegen channel (`--asset-policy generate`) — the screenshot is a design reference, not necessarily an asset library you have rights to lift pixels from. Use `--asset-policy crop` when you do own the source image and a clean, unobstructed region exists to lift verbatim. CSS placeholders are a fallback for neither case, or when `--asset-policy placeholder` is explicitly requested.
 
 Generate quality bar:
 

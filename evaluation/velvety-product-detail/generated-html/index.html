@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VELVETY — CHICORI Calming Serum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --page-bg: #FAF9F5;
+    --surface-bg: #FFFFFF;
+    --text-primary: #1E1E1B;
+    --text-body: #5C584F;
+    --text-muted: #8A867B;
+    --text-faint: #ACA99F;
+    --accent-deep: #223120;
+    --accent-mid: #4B7247;
+    --border-subtle: #E4E0D3;
+    --border-strong: #2A2A26;
+    --footer-bg: #A0A796;
+    --footer-heading: #2E3128;
+    --footer-link: #6E7268;
+    --font-heading: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+  }
+  html, body { background: var(--page-bg); font-family: var(--font-body); color: var(--text-primary); }
+  .font-display { font-family: var(--font-heading); }
+  .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; }
+  .tracking-label { letter-spacing: 0.14em; }
+  .divider-line { height: 1px; background: var(--border-subtle); border: none; }
+  .btn-primary { background: var(--accent-deep); color: #fff; }
+  .btn-primary:hover { background: #16211530; }
+  .card-img-frame { background: #efece3; overflow: hidden; }
+  .card-img-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Shared icon sprite: single call-site per references/icon-system.md -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M15.8 4.3a8 8 0 1 0 3.9 14A9.2 9.2 0 0 1 15.8 4.3Z"/></symbol>
+  <symbol id="icon-sprout" viewBox="0 0 24 24"><path d="M12 21V10.5"/><path d="M12 10.5c0-4 2.8-7 7.5-7 0 5-2.8 7.5-7.5 7.5Z"/><path d="M12 14c0-3.2-2.2-5.5-6-5.5 0 3.7 2.2 5.8 6 5.5Z"/></symbol>
+  <symbol id="icon-droplet" viewBox="0 0 24 24"><path d="M12 3.2s6.2 7.3 6.2 11.3a6.2 6.2 0 0 1-12.4 0C5.8 10.5 12 3.2 12 3.2Z"/></symbol>
+  <symbol id="icon-barrier" viewBox="0 0 24 24"><path d="M12 20V6"/><path d="M12 8.5 9 6.5M12 8.5l3-2M12 11.8 9 9.8m3 2 3-2M12 15 9 13m3 2 3-2"/></symbol>
+  <symbol id="icon-truck" viewBox="0 0 24 24"><path d="M2 6.5h11v9H2z"/><path d="M13 10h4l3.2 3v2.5H13z"/><circle cx="6.2" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></symbol>
+  <symbol id="icon-returns" viewBox="0 0 24 24"><path d="M5 8a7.5 7.5 0 0 1 12.8-3.2"/><path d="M17.8 4.8 18.2 8 15 7.6"/><path d="M19 16a7.5 7.5 0 0 1-12.8 3.2"/><path d="M6.2 19.2 5.8 16 9 16.4"/></symbol>
+  <symbol id="icon-leaf" viewBox="0 0 24 24"><path d="M5 19c0-8.3 4-13.5 13.5-14.5C19.5 13 14.3 18 5 19Z"/><path d="M5 19c2-3.2 5.3-5.4 9.3-7"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M12 20.2s-7.3-4.4-9.7-8.7C1 8.7 2.6 5 6.2 5c2 0 3.6 1.2 5.8 3.6C14.2 6.2 15.8 5 17.8 5c3.6 0 5.2 3.7 3.6 6.5-2.4 4.3-9.4 8.7-9.4 8.7Z"/></symbol>
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="M15 4.5 7.5 12l7.5 7.5"/></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="M9 4.5 16.5 12 9 19.5"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="M4 12.5 9 17.5 20 6"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="icon-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="icon-instagram" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1"/></symbol>
+  <symbol id="icon-facebook" viewBox="0 0 24 24"><path d="M15 4.5h-2.2A3.8 3.8 0 0 0 9 8.3v2.2H7v3.2h2V21h3.4v-7.3h2.5l.5-3.2h-3v-1.8c0-.8.4-1.2 1.3-1.2H15Z"/></symbol>
+  <symbol id="icon-pinterest" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.3 17c1-3 1.6-5.2 1.6-7.2a1.9 1.9 0 1 1 3.7 0c0 1.7-1 3.1-2.4 3.1"/></symbol>
+  <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.3 6.3 12 13l8.7-6.7"/></symbol>
+</svg>
+
+<script type="text/babel">
+const { useState } = React;
+
+function Icon({ name, className = "icon" }) {
+  return (
+    <svg className={className} aria-hidden="true">
+      <use href={`#icon-${name}`} />
+    </svg>
+  );
+}
+
+const galleryThumbs = [
+  { src: "./assets/thumb-1.png", alt: "CHICORI Calming Serum bottle, front view" },
+  { src: "./assets/thumb-2.png", alt: "Hand holding dropper with a drop of serum" },
+  { src: "./assets/thumb-3.png", alt: "Serum gel texture swatch on skin" },
+  { src: "./assets/thumb-4.png", alt: "Green pennywort leaves" },
+];
+
+const featureTraits = [
+  { icon: "moon", label: "Calming" },
+  { icon: "sprout", label: "Soothing" },
+  { icon: "droplet", label: "Hydrating" },
+  { icon: "barrier", label: "Barrier Care" },
+];
+
+const trustBadges = [
+  { icon: "truck", title: "FREE SHIPPING", subtitle: "On all orders over €60" },
+  { icon: "returns", title: "30-DAY RETURNS", subtitle: "Love it or return it" },
+  { icon: "leaf", title: "NATURAL INGREDIENTS", subtitle: "Clean & effective" },
+  { icon: "lock", title: "SECURE PAYMENT", subtitle: "100% secure checkout" },
+];
+
+const tabs = ["DESCRIPTION", "INGREDIENTS", "HOW TO USE", "DETAILS"];
+
+const checklist = [
+  "Calms redness and irritation",
+  "Strengthens the skin barrier",
+  "Deep hydration",
+  "Lightweight & fast absorbing",
+  "Suitable for sensitive skin",
+  "Dermatologically tested",
+];
+
+const relatedProducts = [
+  { name: "GRACE", category: "Cleansing Oil", price: "€42.00", image: "./assets/related-grace.png" },
+  { name: "LUMIÈRE", category: "Glow Essence", price: "€59.00", image: "./assets/related-lumiere.png" },
+  { name: "BALANCE", category: "Moisturizing Cream", price: "€54.00", image: "./assets/related-balance.png" },
+  { name: "PETAL", category: "Hydrating Toner", price: "€36.00", image: "./assets/related-petal.png" },
+];
+
+const footerColumns = [
+  { heading: "SHOP", links: ["All Products", "Skincare", "Best Sellers", "New Arrivals", "Gift Sets"] },
+  { heading: "HELP", links: ["FAQ", "Shipping & Delivery", "Returns & Exchanges", "Payment", "Contact Us"] },
+  { heading: "STORES", links: ["Our Stores", "Store Locator", "Events", "Sustainability", "Careers"] },
+];
+
+function Header() {
+  return (
+    <header className="border-b border-[var(--border-subtle)]">
+      <div className="max-w-[1014px] mx-auto flex items-center justify-between px-5 py-6">
+        <div className="font-display text-2xl tracking-wide">VELVETY</div>
+        <nav className="hidden md:flex items-center gap-10 text-[13px] tracking-label text-[var(--text-primary)]">
+          <a href="#" className="hover:text-[var(--accent-mid)]">PAGES</a>
+          <a href="#" className="hover:text-[var(--accent-mid)]">SHOP</a>
+          <a href="#" className="hover:text-[var(--accent-mid)]">ABOUT</a>
+        </nav>
+        <div className="flex items-center gap-8 text-[13px] tracking-label">
+          <a href="#" className="hover:text-[var(--accent-mid)]">LOGIN</a>
+          <a href="#" className="hover:text-[var(--accent-mid)]">CART (0)</a>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ProductGallery() {
+  return (
+    <div className="flex gap-[10px] w-[86px] shrink-0 md:flex-col">
+      {galleryThumbs.map((thumb, i) => (
+        <div key={i} className="card-img-frame rounded-[2px] w-full aspect-[76/103]">
+          <img src={thumb.src} alt={thumb.alt} loading="lazy" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProductInfo() {
+  const [size, setSize] = useState("30 ml");
+  const [qty, setQty] = useState(1);
+  return (
+    <div className="flex-1 min-w-[280px]">
+      <span className="inline-block border border-[var(--accent-mid)] text-[var(--accent-mid)] text-[11px] tracking-label font-medium px-3 py-1 rounded-[3px]">
+        BEST SELLER
+      </span>
+      <h1 className="font-display text-[38px] leading-tight mt-3">CHICORI</h1>
+      <p className="font-display text-[20px] text-[var(--text-body)] -mt-1">Calming Serum</p>
+      <p className="text-[22px] font-medium mt-3">€68.00</p>
+      <p className="text-[14px] leading-relaxed text-[var(--text-body)] mt-3 max-w-[320px]">
+        A lightweight daily serum formulated to calm sensitive skin, reduce redness, and strengthen the skin barrier. Enriched with Centella Asiatica and Green Tea Extract.
+      </p>
+
+      <div className="flex gap-8 mt-6">
+        {featureTraits.map((trait) => (
+          <div key={trait.label} className="flex flex-col items-center text-center gap-2 w-[64px]">
+            <Icon name={trait.icon} className="icon w-6 h-6 text-[var(--text-primary)]" />
+            <span className="text-[11px] text-[var(--text-muted)]">{trait.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-7">
+        <p className="text-[12px] tracking-label text-[var(--text-muted)] mb-2">SIZE</p>
+        <div className="flex gap-3">
+          {["30 ml", "50 ml"].map((opt) => (
+            <button
+              key={opt}
+              onClick={() => setSize(opt)}
+              className="px-6 py-2.5 text-[14px] rounded-[3px]"
+              style={{
+                border: size === opt ? "1.5px solid var(--border-strong)" : "1px solid var(--border-subtle)",
+                color: "var(--text-primary)",
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <p className="text-[12px] tracking-label text-[var(--text-muted)] mb-2">QUANTITY</p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-stretch border border-[var(--border-subtle)] rounded-[3px] overflow-hidden">
+            <button
+              aria-label="Decrease quantity"
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              className="w-10 h-9 flex items-center justify-center hover:bg-black/5"
+            >
+              <Icon name="minus" className="icon w-3.5 h-3.5" />
+            </button>
+            <div className="w-12 h-9 flex items-center justify-center text-[14px] border-x border-[var(--border-subtle)]">{qty}</div>
+            <button
+              aria-label="Increase quantity"
+              onClick={() => setQty((q) => q + 1)}
+              className="w-10 h-9 flex items-center justify-center hover:bg-black/5"
+            >
+              <Icon name="plus" className="icon w-3.5 h-3.5" />
+            </button>
+          </div>
+          <span className="text-[13px] font-medium" style={{ color: "var(--accent-mid)" }}>In stock</span>
+        </div>
+      </div>
+
+      <div className="flex gap-3 mt-7">
+        <button className="btn-primary flex-1 h-[44px] rounded-[3px] text-[13px] tracking-label font-medium">
+          ADD TO CART
+        </button>
+        <button
+          aria-label="Add to wishlist"
+          className="w-[44px] h-[44px] border border-[var(--border-subtle)] rounded-[3px] flex items-center justify-center hover:bg-black/5"
+        >
+          <Icon name="heart" className="icon w-[18px] h-[18px]" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductHero() {
+  return (
+    <section className="max-w-[1014px] mx-auto px-5 md:px-9 py-8">
+      <div className="flex flex-col md:flex-row gap-6 md:gap-9">
+        <ProductGallery />
+        <div className="card-img-frame rounded-[3px] flex-1 md:max-w-[477px] aspect-[477/533]">
+          <img src="./assets/product-main.png" alt="CHICORI Calming Serum bottle on a marble stand surrounded by pennywort leaves" loading="eager" />
+        </div>
+        <ProductInfo />
+      </div>
+    </section>
+  );
+}
+
+function TrustBadges() {
+  return (
+    <section className="border-y border-[var(--border-subtle)]">
+      <div className="max-w-[1014px] mx-auto px-5 md:px-9 py-5 grid grid-cols-2 md:grid-cols-4 gap-y-5">
+        {trustBadges.map((b, i) => (
+          <div key={b.title} className={`flex items-center gap-3 ${i > 0 ? "md:border-l md:border-[var(--border-subtle)] md:pl-6" : ""}`}>
+            <Icon name={b.icon} className="icon w-6 h-6 shrink-0 text-[var(--text-primary)]" />
+            <div>
+              <p className="text-[12px] tracking-label font-medium">{b.title}</p>
+              <p className="text-[12px] text-[var(--text-muted)]">{b.subtitle}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DetailsTabs() {
+  const [active, setActive] = useState("DESCRIPTION");
+  return (
+    <section className="max-w-[1014px] mx-auto px-5 md:px-9 py-7">
+      <div className="flex gap-9 border-b border-[var(--border-subtle)] pb-2.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActive(tab)}
+            className="relative text-[13px] tracking-label pb-2.5 -mb-2.5"
+            style={{ color: active === tab ? "var(--text-primary)" : "var(--text-muted)", fontWeight: active === tab ? 600 : 400 }}
+          >
+            {tab}
+            {active === tab && (
+              <span className="absolute left-0 -bottom-[1px] w-full h-[2px]" style={{ background: "var(--text-primary)" }} />
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-8 mt-5">
+        <div className="flex-1">
+          <p className="text-[14px] leading-snug text-[var(--text-body)] max-w-[480px]">
+            <strong className="text-[var(--text-primary)]">CHICORI</strong> Calming Serum is a soothing solution for sensitive and irritated skin. Centella Asiatica and Green Tea Extract help to calm redness and strengthen the skin barrier, while Hyaluronic Acid provides long-lasting hydration for a healthy, balanced complexion.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-flow-col sm:grid-rows-3 gap-x-10 gap-y-2.5 mt-4 max-w-[480px]">
+            {checklist.map((item) => (
+              <div key={item} className="flex items-start gap-2 text-[14px] text-[var(--text-body)]">
+                <Icon name="check" className="icon w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--accent-mid)" }} />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card-img-frame rounded-[3px] w-full md:w-[414px] aspect-[414/207] shrink-0">
+          <img src="./assets/texture-swatch.png" alt="Close-up of the CHICORI serum gel texture" loading="lazy" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RelatedProducts() {
+  return (
+    <section className="max-w-[1014px] mx-auto px-5 py-8">
+      <div className="flex items-center gap-6 mb-6">
+        <hr className="divider-line flex-1" />
+        <h2 className="text-[15px] tracking-label whitespace-nowrap">YOU MAY ALSO LIKE</h2>
+        <hr className="divider-line flex-1" />
+      </div>
+
+      <div className="relative">
+        <button aria-label="Previous product" className="hidden md:flex absolute left-[-28px] top-[60px] items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+          <Icon name="chevron-left" className="icon w-4 h-4" />
+        </button>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+          {relatedProducts.map((p) => (
+            <article key={p.name}>
+              <div className="card-img-frame rounded-[2px] aspect-[4/3]">
+                <img src={p.image} alt={`${p.name} — ${p.category}`} loading="lazy" />
+              </div>
+              <div className="flex items-start justify-between mt-2.5">
+                <div>
+                  <h3 className="font-display text-[17px]">{p.name}</h3>
+                  <p className="text-[13px] text-[var(--text-muted)] mt-0.5">{p.category}</p>
+                  <p className="text-[14px] font-medium mt-1.5">{p.price}</p>
+                </div>
+                <button aria-label={`Add ${p.name} to wishlist`} className="mt-1 text-[var(--text-primary)] hover:text-[var(--accent-mid)]">
+                  <Icon name="heart" className="icon w-[18px] h-[18px]" />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+        <button aria-label="Next product" className="hidden md:flex absolute right-[-28px] top-[60px] items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+          <Icon name="chevron-right" className="icon w-4 h-4" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="relative overflow-hidden" style={{ background: "var(--footer-bg)" }}>
+      <div className="max-w-[1014px] mx-auto px-5 pt-9 pb-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1fr] gap-8">
+          <div>
+            <h2 className="font-display text-2xl" style={{ color: "var(--footer-heading)" }}>VELVETY</h2>
+            <p className="text-[13px] leading-snug mt-2 max-w-[220px]" style={{ color: "var(--footer-link)" }}>
+              Botanical skincare inspired by nature, crafted for healthy, radiant skin.
+            </p>
+            <div className="flex gap-4 mt-3.5" style={{ color: "var(--footer-heading)" }}>
+              <a href="#" aria-label="Instagram"><Icon name="instagram" className="icon w-[18px] h-[18px]" /></a>
+              <a href="#" aria-label="Facebook"><Icon name="facebook" className="icon w-[18px] h-[18px]" /></a>
+              <a href="#" aria-label="Pinterest"><Icon name="pinterest" className="icon w-[18px] h-[18px]" /></a>
+              <a href="#" aria-label="Email"><Icon name="mail" className="icon w-[18px] h-[18px]" /></a>
+            </div>
+          </div>
+          {footerColumns.map((col) => (
+            <div key={col.heading}>
+              <h3 className="text-[13px] tracking-label font-semibold" style={{ color: "var(--footer-heading)" }}>{col.heading}</h3>
+              <ul className="mt-3 space-y-2">
+                {col.links.map((link) => (
+                  <li key={link}>
+                    <a href="#" className="text-[13px] hover:underline" style={{ color: "var(--footer-link)" }}>{link}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-8 pt-4 text-[12px]" style={{ color: "var(--footer-link)", borderTop: "1px solid rgba(46,49,40,0.15)" }}>
+          <p>© 2024 VELVETY. All rights reserved.</p>
+          <div className="flex gap-6">
+            <a href="#" className="hover:underline">Privacy Policy</a>
+            <a href="#" className="hover:underline">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 220 230"
+        className="pointer-events-none absolute right-0 bottom-[-10px] w-[220px] h-[230px] opacity-40 hidden md:block"
+        style={{ color: "var(--footer-heading)" }}
+      >
+        <g fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M150 225 C140 170 135 120 120 20" />
+          <path d="M120 40 C90 45 65 55 40 70" />
+          <path d="M126 65 C155 66 180 72 205 85" />
+          <path d="M122 90 C90 95 62 108 35 128" />
+          <path d="M130 112 C160 116 185 126 205 140" />
+          <path d="M126 138 C96 145 70 158 45 176" />
+          <path d="M133 160 C160 166 182 176 200 190" />
+          <path d="M129 183 C102 192 78 203 55 218" />
+        </g>
+      </svg>
+    </footer>
+  );
+}
+
+function App() {
+  return (
+    <main style={{ background: "var(--page-bg)" }}>
+      <Header />
+      <ProductHero />
+      <TrustBadges />
+      <DetailsTabs />
+      <RelatedProducts />
+      <Footer />
+    </main>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

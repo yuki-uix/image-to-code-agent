@@ -42,6 +42,18 @@ Interpret the score only as triage:
 
 Pillow and local Chrome/Chromium are optional dependencies for this advanced visual gate. Their absence must not break default Generate mode.
 
+## Fidelity loop and dual-critique Reference Review
+
+`scripts/fidelity-loop.mjs` wraps the capture + diff steps above into one command with a bounded round count (`--max-rounds`, mirrors the one-repair-pass convention above) and produces a report with three tiers, ported from image2_UI_skill's `ui_loop.mjs`/`loop-engineering.md` convention:
+
+- **Must Fix** — deterministic, computed by the script itself: capture failure, `visual-diff.py`'s own `fail` verdict, horizontal document overflow past the viewport. Always blocks.
+- **Should Fix** — deterministic: `visual-diff.py`'s `partial` verdict, document notably taller than the viewport (confirm it's real content, not accidental whitespace). Usually blocks, sometimes an accepted choice.
+- **Reference Review** — the residual, genuinely judgment-dependent gap that the "brief semantic review" above was already asking a human/agent to do; console-error and broken-asset detection would also belong here once `capture-page.mjs` gains that capability (not yet implemented — currently out of scope). The script leaves this tier as an explicit empty slot; the orchestrating agent fills it from two independent passes rather than one:
+  1. Dispatch a sub agent to run `codex exec` on the rendered-vs-reference comparison image (`overlay.png`, or `reference.png`/`actual.png` side by side) and report its findings.
+  2. Look at `overlay.png` directly with your own (Sonnet) reading and add your own findings.
+
+Show both passes side by side, tagged by source — do not merge them into a single verdict or drop one because the other disagrees. The two are independent lenses on the same "automation can't judge this" gap; a finding only one of them catches is still a real finding.
+
 ## Recommended eval bundle
 
 For each serious Reuse test, keep:

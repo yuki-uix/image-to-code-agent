@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VisualAnalysisStrict",
+  "description": "OpenAI structured-outputs strict-mode variant of VisualAnalysis (see ../../src/domain/contracts.ts and the sibling schema.json). Every object requires additionalProperties:false and every declared property listed in required (nullable unions express optionality) — arbitrary-keyed dictionaries are not expressible in strict mode, so hierarchy.children is encoded as an array of {id, childIds} pairs instead of a {parentId: [childIds]} map, and visualTokens/elements[].visual (open-ended, unconstrained-value dictionaries in the canonical contract) are omitted entirely — this skill's Step 2 color-palette/design-token inventories are produced separately by direct visual reading, not sourced from this call. Convert hierarchy.children back into a plain {id: [childIds]} object immediately after receiving this output, before treating the result as layout.json, so every other consumer of the VisualAnalysis contract is unaffected.",
+  "type": "object",
+  "required": ["source", "regions", "layout", "hierarchy", "elements", "layoutRelations", "uncertainObservations"],
+  "additionalProperties": false,
+  "properties": {
+    "source": { "$ref": "#/$defs/size" },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "bbox"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "role": { "type": "string" },
+          "bbox": { "$ref": "#/$defs/rect" }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": ["direction", "horizontalAlignment", "gap", "padding", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "direction": { "type": "string", "enum": ["row", "column", "mixed"] },
+        "horizontalAlignment": { "type": ["string", "null"], "enum": ["start", "center", "end", "stretch", "mixed", null] },
+        "gap": { "type": ["number", "null"] },
+        "padding": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["top", "right", "bottom", "left"],
+              "additionalProperties": false,
+              "properties": {
+                "top": { "type": "number" },
+                "right": { "type": "number" },
+                "bottom": { "type": "number" },
+                "left": { "type": "number" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "notes": { "type": ["array", "null"], "items": { "type": "string" } }
+      }
+    },
+    "hierarchy": {
+      "type": "object",
+      "required": ["root", "children"],
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string" },
+        "children": {
+          "type": "array",
+          "description": "One entry per parent id that has children — array form only because strict mode can't express an arbitrary-keyed {parentId: [childIds]} map. Convert to that map immediately after receiving this response.",
+          "items": {
+            "type": "object",
+            "required": ["id", "childIds"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "childIds": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "text", "regionId", "bbox", "visualRole", "geometrySource", "certainty"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "text": { "type": ["string", "null"] },
+          "regionId": { "type": "string" },
+          "bbox": { "anyOf": [{ "$ref": "#/$defs/rect" }, { "type": "null" }] },
+          "visualRole": { "type": ["string", "null"] },
+          "geometrySource": { "enum": ["vlm", "ocr", "detector"] },
+          "certainty": { "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "layoutRelations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "source", "target", "distance"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "enum": ["above", "below", "left-of", "right-of", "aligned-left", "aligned-center", "same-width", "contains"] },
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "distance": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "uncertainObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description", "relatedIds"],
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "relatedIds": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

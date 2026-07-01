@@ -1,0 +1,37 @@
+{
+  "status": "rounds-exhausted",
+  "round": 3,
+  "maxRounds": 3,
+  "reference": "/Users/lumimamini/Documents/image2_UI_skill/research/image-to-code-agent/evaluation/velvety-product-detail/screenshot.png",
+  "mustFix": [],
+  "shouldFix": [
+    {
+      "rule": "visual-diff-partial",
+      "message": "overall similarity 0.7719 is in the partial range",
+      "action": "inspect overlay.png and worstTiles; consider one targeted repair pass"
+    }
+  ],
+  "referenceReview": {
+    "codex": null,
+    "sonnet": null,
+    "instructions": [
+      "Dispatch a sub agent to run codex exec on /tmp/velvety-test/fidelity/overlay.png (or the reference and actual images side by side) and report its findings; set \"codex\" to that text.",
+      "Look at /tmp/velvety-test/fidelity/overlay.png yourself and add your own findings; set \"sonnet\" to that text.",
+      "Show both once filled in — do not merge them into one verdict or drop one because the other disagrees."
+    ]
+  },
+  "artifacts": {
+    "actual": "/tmp/velvety-test/fidelity/actual.png",
+    "overlay": "/private/tmp/velvety-test/fidelity/overlay.png",
+    "diff": "/private/tmp/velvety-test/fidelity/diff.png",
+    "visualEvalJson": "/private/tmp/velvety-test/fidelity/visual-eval.json"
+  },
+  "scores": {
+    "overall": 0.7719,
+    "visualSimilarity": 0.844,
+    "colorSimilarity": 0.8832,
+    "structureSimilarity": 0.9321,
+    "pixelAgreement": 0.6014,
+    "dimensionSimilarity": 0.9146
+  }
+}

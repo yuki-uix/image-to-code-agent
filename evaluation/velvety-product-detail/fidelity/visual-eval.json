@@ -1,0 +1,92 @@
+{
+  "valid": false,
+  "verdict": "partial",
+  "scores": {
+    "overall": 0.7719,
+    "visualSimilarity": 0.844,
+    "colorSimilarity": 0.8832,
+    "structureSimilarity": 0.9321,
+    "pixelAgreement": 0.6014,
+    "dimensionSimilarity": 0.9146
+  },
+  "dimensions": {
+    "reference": {
+      "width": 1014,
+      "height": 1662
+    },
+    "actual": {
+      "width": 1022,
+      "height": 1803
+    }
+  },
+  "worstTiles": [
+    {
+      "row": 2,
+      "column": 3,
+      "bbox": {
+        "x": 507,
+        "y": 416,
+        "width": 253,
+        "height": 415
+      },
+      "similarity": 0.809
+    },
+    {
+      "row": 1,
+      "column": 1,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "width": 254,
+        "height": 416
+      },
+      "similarity": 0.834
+    },
+    {
+      "row": 2,
+      "column": 1,
+      "bbox": {
+        "x": 0,
+        "y": 416,
+        "width": 254,
+        "height": 415
+      },
+      "similarity": 0.8446
+    },
+    {
+      "row": 2,
+      "column": 2,
+      "bbox": {
+        "x": 254,
+        "y": 416,
+        "width": 253,
+        "height": 415
+      },
+      "similarity": 0.8478
+    },
+    {
+      "row": 1,
+      "column": 2,
+      "bbox": {
+        "x": 254,
+        "y": 0,
+        "width": 253,
+        "height": 416
+      },
+      "similarity": 0.8524
+    }
+  ],
+  "recommendedAction": "one-targeted-repair",
+  "artifacts": {
+    "reference": "/private/tmp/velvety-test/fidelity/reference.png",
+    "actual": "/private/tmp/velvety-test/fidelity/actual.png",
+    "actualResized": "/private/tmp/velvety-test/fidelity/actual-resized.png",
+    "overlay": "/private/tmp/velvety-test/fidelity/overlay.png",
+    "diff": "/private/tmp/velvety-test/fidelity/diff.png",
+    "report": "/private/tmp/velvety-test/fidelity/visual-eval.json"
+  },
+  "notes": [
+    "Pixel scores are triage signals, not proof of semantic correctness.",
+    "Use the overlay, diff image, and worst tiles for at most one targeted repair pass."
+  ]
+}
