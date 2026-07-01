@@ -6,7 +6,7 @@ This is not a magic “perfect page from one image” button. It is a practical 
 
 The default screenshot path remains intentionally light. For production-oriented work, prefer a clean design bundle containing a page reference plus separate assets; flattened design-board cropping is a fallback.
 
-The skill is not a separate model and does not require Ollama, qwen, npm install, React install, Tailwind install, or a build step for the default HTML output.
+The skill is not a separate model and does not require a local model runtime, npm install, React install, Tailwind install, or a build step for the default HTML output.
 
 ## What is this tool?
 
@@ -62,13 +62,15 @@ Current state: workflow MVP. Generate, Extract, and Validate are usable today; R
 - Asset composition contract for single, background, and layered media, including fit, aspect ratio, transparent-overlay, z-index, and generated marker validation.
 - First-class `design-bundle` directory input and a zero-model preflight validator for page reference, separate assets, optional manifest metadata, file safety, dimensions, and transparency claims.
 - Layout contract derived from observed bboxes, plus DOM geometry capture and deterministic validation for viewport, document height, region position, size, and repeated counts.
+- Executable React/Vue component contract with independent component files, registry mappings, preserved props/variants, and data-driven repeated rendering.
 
 ### TODO / next milestones
 
 - Keep Reuse marked as advanced/experimental until it passes more page families and page types.
 - Improve crop precision and add stronger visual crop validation, not just asset existence checks.
 - Strengthen page-contract extraction so generated contracts capture all visible target-page facts before reuse begins.
-- Add runnable validation for React and Vue outputs, beyond framework-output shape checks.
+- Add `--component-library` so later React/Vue pages import previously generated component code instead of regenerating it.
+- Add per-stage timing traces to distinguish hosted-model generation latency from local packaging and deterministic validation.
 - Expand same-brand test suites and require with-system vs no-system comparisons for reuse regressions.
 - Reduce token cost by keeping Generate light by default and putting heavier extraction, reuse, and visual checks behind explicit flags.
 - Polish installation and packaging so a new user can run the workflow from any project with minimal setup.
@@ -183,10 +185,10 @@ Framework outputs:
 | Framework | Output | Intended use |
 |---|---|---|
 | `html` | `index.html`, optional `assets/` | open directly in a browser |
-| `react` | `App.tsx`, `tokens.css`, optional components/data/assets files | copy into an existing React project |
-| `vue` | `App.vue`, `tokens.css`, optional components/data/assets files | copy into an existing Vue project |
+| `react` | `src/App.tsx`, reusable `components/`, sections, data, tokens, manifest, assets | copy into an existing React project |
+| `vue` | `src/App.vue`, reusable `components/`, sections, data, tokens, manifest, assets | copy into an existing Vue project |
 
-HTML remains the default because it is the lowest-friction preview path. React and Vue outputs are framework code, not full project scaffolds, unless the user explicitly asks for a full project.
+HTML remains the default because it is the lowest-friction preview path. Design-package React and Vue outputs must materialize reusable registered components, but are not full project scaffolds unless explicitly requested.
 
 By default, the skill should crop visible image regions from the screenshot into real assets. CSS placeholders are only a fallback when cropping is impossible or `--asset-policy placeholder` is requested.
 
@@ -296,6 +298,7 @@ skills/image-to-code/scripts/validate-region-coverage.mjs
 skills/image-to-code/scripts/validate-asset-composition.mjs
 skills/image-to-code/scripts/build-layout-contract.mjs
 skills/image-to-code/scripts/validate-layout-contract.mjs
+skills/image-to-code/scripts/validate-framework-components.mjs
 skills/image-to-code/scripts/capture-page.mjs
 skills/image-to-code/scripts/visual-diff.py
 skills/image-to-code/scripts/validate-design-input.mjs
@@ -311,6 +314,7 @@ skills/image-to-code/scripts/validate-design-input.mjs
 - `validate-asset-composition.mjs` rejects opaque overlay layers, unknown assets, missing image plans, path mismatches, and invalid fit/aspect declarations.
 - `build-layout-contract.mjs` converts observed page-fact bboxes into low-token geometry constraints.
 - `validate-layout-contract.mjs` compares captured DOM geometry with the target viewport, document, and region tolerances.
+- `validate-framework-components.mjs` verifies that React/Vue outputs materialize, reuse, and render registered components instead of producing a monolithic page.
 - `capture-page.mjs` captures the complete rendered document and optional DOM region measurements through local Chrome DevTools.
 - `visual-diff.py` crops the source page reference, writes overlay/diff artifacts, and reports dimension, color, structure, and worst-tile scores.
 - `validate-design-input.mjs` performs a zero-model preflight on clean page-reference and asset directories.
@@ -331,6 +335,17 @@ Validate a Reuse output when `page-contract.json` exists:
 
 ```sh
 node skills/image-to-code/scripts/validate-page-contract.mjs ./output/page/page-contract.json ./output/page
+```
+
+Validate reusable React/Vue component output:
+
+```sh
+node skills/image-to-code/scripts/validate-framework-components.mjs \
+  react \
+  ./output/design-package/components.json \
+  ./output/page/page-contract.json \
+  ./output/page/component-manifest.json \
+  ./output/page
 ```
 
 Evaluate a Reuse run:
@@ -467,12 +482,4 @@ Visual calibration against a browser-rendered screenshot remains a later workflo
 
 ## Development history
 
-The `src/` directory contains an earlier multi-agent pipeline:
-
-```txt
-Visual Analyst → Component Architect → UI Architect → Code Generator
-```
-
-That pipeline uses local model tooling and was useful for understanding image-to-code failure modes: missing text, over-merged components, placeholder generation, invalid JSX, and weak layout hierarchy.
-
-The production-facing deliverable is the `skills/` directory. The pipeline remains as reference and experimentation infrastructure.
+The `src/` directory retains framework-level contracts, normalization, repair, validation, and replay-test infrastructure from the earlier multi-agent experiments. The production-facing deliverable is the `skills/` directory; no local-model runtime or provider-specific CLI remains in the repository.

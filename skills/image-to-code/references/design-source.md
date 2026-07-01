@@ -169,6 +169,8 @@ Then generate code using:
 - components for reusable UI behavior and styling
 - the asset manifest for real imagery
 
+For React or Vue, read `component-output.md`, add `requiredComponents` to the page contract, materialize registry components as independent files, and validate `component-manifest.json` before reporting success.
+
 Do not flatten extracted assets back into a screenshot-sized background image. The result must remain editable and componentized.
 
 ## Validation

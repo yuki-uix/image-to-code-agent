@@ -189,7 +189,7 @@ Use a `:root` block for tokens:
 
 Default output directory: image basename plus `-react`.
 
-Prefer this minimal structure:
+For screenshot-only fast mode, this minimal structure is acceptable:
 
 ```txt
 App.tsx
@@ -197,7 +197,7 @@ tokens.css
 assets/
 ```
 
-Use more files only when the page has clear reusable components:
+For design-package or safe output, follow `component-output.md` and split every required reusable component:
 
 ```txt
 App.tsx
@@ -221,6 +221,7 @@ React rules:
 - Do not include React CDN, Babel, `ReactDOM.createRoot`, or HTML shell.
 - Do not assume a router, global state library, icon library, or image asset pipeline.
 - Reference cropped assets with relative paths such as `./assets/product-main.png` or import them only if the target project convention is known.
+- Write `component-manifest.json` and pass framework component validation for design-package output.
 
 Minimal pattern:
 
@@ -262,7 +263,7 @@ export default function App() {
 
 Default output directory: image basename plus `-vue`.
 
-Prefer this minimal structure:
+For screenshot-only fast mode, this minimal structure is acceptable:
 
 ```txt
 App.vue
@@ -270,7 +271,7 @@ tokens.css
 assets/
 ```
 
-Use more files only when the page has clear reusable components:
+For design-package or safe output, follow `component-output.md` and split every required reusable component:
 
 ```txt
 App.vue
@@ -292,6 +293,7 @@ Vue rules:
 - Do not include React patterns, JSX, ReactDOM, or Babel.
 - Do not assume Vue Router, Pinia, icon libraries, or image asset pipeline.
 - Reference cropped assets with relative paths such as `./assets/product-main.png` unless the target project convention is known.
+- Write `component-manifest.json` and pass framework component validation for design-package output.
 
 Minimal pattern:
 
