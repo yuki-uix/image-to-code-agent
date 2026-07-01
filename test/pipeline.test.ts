@@ -613,6 +613,84 @@ test("layout contract validator rejects document and region drift", async () => 
   assert.ok(report.issues.some((issue: { code: string; target: string }) => issue.code === "region-geometry-drift" && issue.target === "related-products"));
 });
 
+test("framework component validator accepts reusable React components", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "framework-components-react-"));
+  await mkdir(join(outputDir, "src/components"), { recursive: true });
+  await mkdir(join(outputDir, "src/sections"), { recursive: true });
+  const registryPath = join(outputDir, "registry.json");
+  const contractPath = join(outputDir, "page-contract.json");
+  const manifestPath = join(outputDir, "component-manifest.json");
+  await writeFile(registryPath, JSON.stringify({
+    Button: { props: ["label", "variant"], variants: [{ name: "primary" }, { name: "secondary" }] },
+    ProductCard: { props: ["name", "price"], variants: [{ name: "default" }] }
+  }));
+  await writeFile(contractPath, JSON.stringify({ requiredComponents: [
+    { name: "Button", sourceComponent: "Button", expectedInstances: 1, repeated: false },
+    { name: "ProductCard", sourceComponent: "ProductCard", expectedInstances: 4, repeated: true }
+  ] }));
+  await writeFile(manifestPath, JSON.stringify({
+    meta: { schemaVersion: 1, framework: "react" },
+    entry: "src/App.tsx",
+    components: [
+      { name: "Button", sourceComponent: "Button", file: "src/components/Button.tsx", reusable: true, props: ["label", "variant"], variants: ["primary", "secondary"], renderStrategy: "single" },
+      { name: "ProductCard", sourceComponent: "ProductCard", file: "src/components/ProductCard.tsx", reusable: true, props: ["name", "price"], variants: ["default"], renderStrategy: "data-driven" }
+    ]
+  }));
+  await writeFile(join(outputDir, "src/components/Button.tsx"), "export function Button({ label }: { label: string; variant: string }) { return <button>{label}</button>; }");
+  await writeFile(join(outputDir, "src/components/ProductCard.tsx"), "export function ProductCard({ name, price }: { name: string; price: string }) { return <article>{name}{price}</article>; }");
+  await writeFile(join(outputDir, "src/sections/RelatedProducts.tsx"), "import { ProductCard } from '../components/ProductCard'; const products = [{ name: 'One', price: '$1' }]; export function RelatedProducts() { return <section>{products.map((product) => <ProductCard key={product.name} {...product} />)}</section>; }");
+  await writeFile(join(outputDir, "src/App.tsx"), "import { Button } from './components/Button'; import { RelatedProducts } from './sections/RelatedProducts'; export default function App() { return <main><Button label='Buy' variant='primary' /><RelatedProducts /></main>; }");
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-framework-components.mjs", "react", registryPath, contractPath, manifestPath, outputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(JSON.parse(result.stdout).valid, true);
+});
+
+test("framework component validator accepts data-driven Vue components", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "framework-components-vue-"));
+  await mkdir(join(outputDir, "src/components"), { recursive: true });
+  const registryPath = join(outputDir, "registry.json");
+  const contractPath = join(outputDir, "page-contract.json");
+  const manifestPath = join(outputDir, "component-manifest.json");
+  await writeFile(registryPath, JSON.stringify({ ProductCard: { props: ["name", "price"], variants: [{ name: "default" }] } }));
+  await writeFile(contractPath, JSON.stringify({ requiredComponents: [{ name: "ProductCard", sourceComponent: "ProductCard", expectedInstances: 4, repeated: true }] }));
+  await writeFile(manifestPath, JSON.stringify({
+    meta: { schemaVersion: 1, framework: "vue" },
+    entry: "src/App.vue",
+    components: [{ name: "ProductCard", sourceComponent: "ProductCard", file: "src/components/ProductCard.vue", reusable: true, props: ["name", "price"], variants: ["default"], renderStrategy: "data-driven" }]
+  }));
+  await writeFile(join(outputDir, "src/components/ProductCard.vue"), "<script setup lang='ts'>defineProps<{ name: string; price: string }>();</script><template><article>{{ name }} {{ price }}</article></template>");
+  await writeFile(join(outputDir, "src/App.vue"), "<script setup lang='ts'>import ProductCard from './components/ProductCard.vue'; const products = [{ name: 'One', price: '$1' }];</script><template><ProductCard v-for='product in products' :key='product.name' v-bind='product' /></template>");
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-framework-components.mjs", "vue", registryPath, contractPath, manifestPath, outputDir], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(JSON.parse(result.stdout).valid, true);
+});
+
+test("framework component validator rejects monolithic or incomplete output", async () => {
+  const outputDir = await mkdtemp(join(tmpdir(), "framework-components-invalid-"));
+  await mkdir(join(outputDir, "src/components"), { recursive: true });
+  const registryPath = join(outputDir, "registry.json");
+  const contractPath = join(outputDir, "page-contract.json");
+  const manifestPath = join(outputDir, "component-manifest.json");
+  await writeFile(registryPath, JSON.stringify({ Button: { props: ["label", "variant"], variants: [{ name: "primary" }] } }));
+  await writeFile(contractPath, JSON.stringify({ requiredComponents: [{ name: "Button", sourceComponent: "Button", expectedInstances: 3, repeated: true }] }));
+  await writeFile(manifestPath, JSON.stringify({
+    meta: { schemaVersion: 1, framework: "react" },
+    entry: "src/App.tsx",
+    components: [{ name: "Button", sourceComponent: "Button", file: "src/components/Button.tsx", reusable: false, props: ["label"], variants: [], renderStrategy: "single" }]
+  }));
+  await writeFile(join(outputDir, "src/components/Button.tsx"), "export function Button({ label }: { label: string }) { return <button>{label}</button>; }");
+  await writeFile(join(outputDir, "src/App.tsx"), "export default function App() { return <main>Buy</main>; }");
+
+  const result = spawnSync(process.execPath, ["skills/image-to-code/scripts/validate-framework-components.mjs", "react", registryPath, contractPath, manifestPath, outputDir], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  const report = JSON.parse(result.stdout);
+  for (const code of ["component-not-reusable", "missing-component-prop", "missing-component-variant", "component-not-rendered", "repeated-component-not-data-driven", "missing-repeated-render-loop"]) {
+    assert.ok(report.issues.some((issue: { code: string }) => issue.code === code), `missing ${code}`);
+  }
+});
+
 test("asset composition accepts transparent overlays and explicit image fits", async () => {
   const outputDir = await mkdtemp(join(tmpdir(), "asset-composition-"));
   const manifestPath = join(outputDir, "asset-manifest.json");

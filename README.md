@@ -62,6 +62,7 @@ Current state: workflow MVP. Generate, Extract, and Validate are usable today; R
 - Asset composition contract for single, background, and layered media, including fit, aspect ratio, transparent-overlay, z-index, and generated marker validation.
 - First-class `design-bundle` directory input and a zero-model preflight validator for page reference, separate assets, optional manifest metadata, file safety, dimensions, and transparency claims.
 - Layout contract derived from observed bboxes, plus DOM geometry capture and deterministic validation for viewport, document height, region position, size, and repeated counts.
+- Executable React/Vue component contract with independent component files, registry mappings, preserved props/variants, and data-driven repeated rendering.
 
 ### TODO / next milestones
 
@@ -183,10 +184,10 @@ Framework outputs:
 | Framework | Output | Intended use |
 |---|---|---|
 | `html` | `index.html`, optional `assets/` | open directly in a browser |
-| `react` | `App.tsx`, `tokens.css`, optional components/data/assets files | copy into an existing React project |
-| `vue` | `App.vue`, `tokens.css`, optional components/data/assets files | copy into an existing Vue project |
+| `react` | `src/App.tsx`, reusable `components/`, sections, data, tokens, manifest, assets | copy into an existing React project |
+| `vue` | `src/App.vue`, reusable `components/`, sections, data, tokens, manifest, assets | copy into an existing Vue project |
 
-HTML remains the default because it is the lowest-friction preview path. React and Vue outputs are framework code, not full project scaffolds, unless the user explicitly asks for a full project.
+HTML remains the default because it is the lowest-friction preview path. Design-package React and Vue outputs must materialize reusable registered components, but are not full project scaffolds unless explicitly requested.
 
 By default, the skill should crop visible image regions from the screenshot into real assets. CSS placeholders are only a fallback when cropping is impossible or `--asset-policy placeholder` is requested.
 
@@ -296,6 +297,7 @@ skills/image-to-code/scripts/validate-region-coverage.mjs
 skills/image-to-code/scripts/validate-asset-composition.mjs
 skills/image-to-code/scripts/build-layout-contract.mjs
 skills/image-to-code/scripts/validate-layout-contract.mjs
+skills/image-to-code/scripts/validate-framework-components.mjs
 skills/image-to-code/scripts/capture-page.mjs
 skills/image-to-code/scripts/visual-diff.py
 skills/image-to-code/scripts/validate-design-input.mjs
@@ -311,6 +313,7 @@ skills/image-to-code/scripts/validate-design-input.mjs
 - `validate-asset-composition.mjs` rejects opaque overlay layers, unknown assets, missing image plans, path mismatches, and invalid fit/aspect declarations.
 - `build-layout-contract.mjs` converts observed page-fact bboxes into low-token geometry constraints.
 - `validate-layout-contract.mjs` compares captured DOM geometry with the target viewport, document, and region tolerances.
+- `validate-framework-components.mjs` verifies that React/Vue outputs materialize, reuse, and render registered components instead of producing a monolithic page.
 - `capture-page.mjs` captures the complete rendered document and optional DOM region measurements through local Chrome DevTools.
 - `visual-diff.py` crops the source page reference, writes overlay/diff artifacts, and reports dimension, color, structure, and worst-tile scores.
 - `validate-design-input.mjs` performs a zero-model preflight on clean page-reference and asset directories.
@@ -331,6 +334,17 @@ Validate a Reuse output when `page-contract.json` exists:
 
 ```sh
 node skills/image-to-code/scripts/validate-page-contract.mjs ./output/page/page-contract.json ./output/page
+```
+
+Validate reusable React/Vue component output:
+
+```sh
+node skills/image-to-code/scripts/validate-framework-components.mjs \
+  react \
+  ./output/design-package/components.json \
+  ./output/page/page-contract.json \
+  ./output/page/component-manifest.json \
+  ./output/page
 ```
 
 Evaluate a Reuse run:

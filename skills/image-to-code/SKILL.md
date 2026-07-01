@@ -256,7 +256,7 @@ If `--source-type design-bundle` is selected or the input path is a directory, r
 
 If `--source-type design-board` is selected or auto-detected, read `references/design-source.md` and follow it before the screenshot workflow below. A supplied `--design-package` skips source decomposition and asset extraction, but the package must still pass validation.
 
-For framework-specific output requirements, read `references/framework-output.md` before writing files.
+For framework and reusable component output requirements, read `references/framework-output.md` and `references/component-output.md` before writing files.
 
 For structured-mode artifact requirements, read `references/structured-output.md` before writing JSON files.
 
@@ -457,8 +457,7 @@ Before finishing, check:
 - The requested mode’s required files exist.
 - Framework output follows the chosen framework’s conventions.
 - HTML output includes React, ReactDOM, Babel, Tailwind CDN, `#root`, and `type="text/babel"`.
-- React output uses valid TypeScript/TSX conventions and exports a root component.
-- Vue output uses a valid Vue 3 SFC structure.
+- React/Vue output uses valid framework files, reusable components, `component-manifest.json`, and passes component validation.
 - All readable visible text is represented.
 - No generic placeholder copy remains.
 - Colors use exact hex values or token variables derived from exact hex values.
